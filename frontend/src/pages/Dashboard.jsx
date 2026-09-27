@@ -5,7 +5,7 @@ import StatCard from '../components/StatCard';
 import GlassCard from '../components/GlassCard';
 import StatusBadge from '../components/StatusBadge';
 import DetailDrawer from '../components/DetailDrawer';
-import EmployeeModal from '../modals/GuardModal';
+import GuardModal from '../modals/GuardModal';
 import RosterModal from '../modals/RosterModal';
 import BulkAttendanceModal from '../modals/BulkAttendanceModal';
 import GenerateInvoiceModal from '../modals/GenerateInvoiceModal';
@@ -38,7 +38,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const role = user?.role || 'ADMIN';
 
-  const [employees, setEmployees] = useState([]);
+  const [guards, setGuards] = useState([]);
   const [clients, setClients] = useState([]);
   const [sites, setSites] = useState([]);
   const [rosters, setRosters] = useState([]);
@@ -107,7 +107,7 @@ export default function Dashboard() {
     return () => { mounted = false; };
   }, []);
 
-  const activeGuardsCount = employees.filter((g) => g.status === 'ACTIVE').length;
+  const activeGuardsCount = guards.filter((g) => g.status === 'ACTIVE').length;
   const totalSitesCount = sites.length;
   const todayAttendanceRate =
     attendance.length > 0
