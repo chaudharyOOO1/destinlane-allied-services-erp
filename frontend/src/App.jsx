@@ -23,6 +23,7 @@ import OwnerExecutiveView from './pages/OwnerExecutiveView';
 import PayrollView from './pages/PayrollView';
 import AccountSettings from './pages/AccountSettings';
 import UserManagement from './pages/UserManagement';
+import IfscMaster from './pages/IfscMaster';
 
 const INTERNAL = ['OWNER','SUPER_ADMIN','ADMIN'];
 const HR_ROLES = [...INTERNAL, 'HR'];
@@ -55,6 +56,7 @@ function App() {
     <Route path="/risks" element={<Protected permission="risks.view"><ControlCenter type="risks" /></Protected>} />
     <Route path="/owner-executive" element={<Protected permission="owner.view"><OwnerExecutiveView /></Protected>} />
     <Route path="/users" element={<Protected permission="user_management.view"><UserManagement /></Protected>} />
+    <Route path="/ifsc-master" element={<Protected allowedRoles={["OWNER","SUPER_ADMIN","ADMIN"]} permission="user_management.view"><IfscMaster /></Protected>} />
     <Route path="/account" element={<Protected><AccountSettings /></Protected>} />
     <Route path="/" element={<RootRedirect />} /><Route path="*" element={<RootRedirect />} />
   </Routes></AuthProvider></Router>;
