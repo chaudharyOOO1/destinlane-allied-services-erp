@@ -10,7 +10,7 @@ import {
 
 const EMPTY_MASTER = {
   employee_code: '', name: '', phone: '', dob: '', gender: '', designation: '',
-  branch: '', site_id: '', joining_date: '', category: 'GUARD', status: 'active',
+  client_id: '', site_id: '', joining_date: '', category: 'GUARD', status: 'active',
   intimation_id: '', emergency_contact: '', marital_status: '',
   aadhaar_no: '', pan_no: '', permanent_address: '', present_address: '',
 };
@@ -48,6 +48,7 @@ function verhoeff(number) {
 export default function Employees() {
   const [rows, setRows] = useState([]);
   const [staff, setStaff] = useState([]);
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -64,12 +65,14 @@ export default function Employees() {
     setLoading(true);
     setError('');
     try {
-      const [employees, staffRows] = await Promise.all([
+      const [employees, staffRows, clientsRows] = await Promise.all([
         api.get('/erp/employees'),
         api.get('/staff').catch(() => ({ data: [] })),
+        api.get('/clients/').catch(() => ({ data: [] })),
       ]);
       setRows(employees.data || []);
       setStaff(staffRows.data || []);
+      setClients(clientsRows.data || []);
     } catch (e) {
       setError(e.response?.data?.detail || 'Unable to load employee master.');
     } finally {
@@ -159,7 +162,7 @@ export default function Employees() {
         dob: form.dob || undefined,
         gender: form.gender || undefined,
         designation: form.designation || undefined,
-        branch: form.branch || undefined,
+        client_id: form.client_id ? Number(form.client_id) : undefined,
         site_id: form.site_id || undefined,
         joining_date: form.joining_date || undefined,
         category: form.category || undefined,
@@ -236,7 +239,7 @@ export default function Employees() {
             <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, employee ID, phone, designation, branch…" className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-slate-400" />
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, employee ID, phone, designation, client…" className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-slate-400" />
               </div>
               <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700">
                 <option value="ALL">All statuses</option><option value="ACTIVE">Active</option><option value="BENCH">Bench</option><option value="INACTIVE">Inactive</option><option value="TERMINATED">Terminated</option>
@@ -247,7 +250,7 @@ export default function Employees() {
             <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
               <table className="min-w-[1050px] w-full text-left text-sm">
                 <thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                  {['Employee', 'ID / Intimation', 'Designation', 'Branch / Site', 'Status', 'Compliance', 'Action'].map((h) => <th key={h} className="px-4 py-3.5">{h}</th>)}
+                  {['Employee', 'ID / Intimation', 'Designation', 'Client / Site', 'Status', 'Compliance', 'Action'].map((h) => <th key={h} className="px-4 py-3.5">{h}</th>)}
                 </tr></thead>
                 <tbody>
                   {loading ? <tr><td colSpan="7" className="px-4 py-12 text-center text-slate-400">Loading employee master…</td></tr> :
@@ -258,7 +261,7 @@ export default function Employees() {
                         <td className="px-4 py-4"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><UserRound className="h-5 w-5" /></div><div><div className="font-semibold text-slate-900">{x.name}</div><div className="text-xs text-slate-500">{x.phone || 'No phone'}</div></div></div></td>
                         <td className="px-4 py-4"><div className="font-mono text-xs font-semibold text-slate-800">{x.employee_code || '—'}</div><div className="mt-1 text-[11px] text-slate-400">{x.intimation_id || 'Intimation pending'}</div></td>
                         <td className="px-4 py-4"><div className="font-medium text-slate-800">{x.designation || '—'}</div><div className="text-xs text-slate-400">{x.category || '—'}</div></td>
-                        <td className="px-4 py-4"><div className="font-medium text-slate-700">{x.branch || '—'}</div><div className="text-xs text-slate-400">{x.site_id || 'Site not allocated'}</div></td>
+                        <td className="px-4 py-4"><div className="font-medium text-slate-700">{x.client_name || clients.find((c) => String(c.id) === String(x.client_id))?.company_name || 'Client not mapped'}</div><div className="text-xs text-slate-400">{x.site_id || 'Site not allocated'}</div></td>
                         <td className="px-4 py-4"><StatusBadge value={locked ? 'BENCH' : String(x.status || 'UNKNOWN').toUpperCase()} /></td>
                         <td className="px-4 py-4">{locked ? <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600"><AlertTriangle className="h-3.5 w-3.5" /> Action required</span> : <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600"><BadgeCheck className="h-3.5 w-3.5" /> Clear</span>}</td>
                         <td className="px-4 py-4"><button className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-slate-950">View <ChevronRight className="h-3.5 w-3.5" /></button></td>
@@ -277,7 +280,7 @@ export default function Employees() {
       </div>
 
       {open && <EmployeeModal
-        form={form} advanced={advanced} photo={photo} setPhoto={setPhoto}
+        form={form} advanced={advanced} photo={photo} setPhoto={setPhoto} clients={clients}
         updateMaster={updateMaster} updateAdvanced={updateAdvanced}
         ifscState={ifscState} validateIfsc={validateIfsc}
         saving={saving} save={save} close={() => setOpen(false)}
@@ -286,7 +289,7 @@ export default function Employees() {
   );
 }
 
-function EmployeeModal({ form, advanced, photo, setPhoto, updateMaster, updateAdvanced, ifscState, validateIfsc, saving, save, close }) {
+function EmployeeModal({ form, advanced, photo, setPhoto, clients, updateMaster, updateAdvanced, ifscState, validateIfsc, saving, save, close }) {
   const [section, setSection] = useState('identity');
   const uniformItems = [['uniform_shirt', 'Shirt', 450], ['uniform_trousers', 'Trousers', 650], ['uniform_shoes', 'Shoes', 900], ['uniform_belt', 'Belt', 150], ['uniform_cap', 'Cap', 120]];
   const uniformCost = uniformItems.reduce((sum, [key, , cost]) => sum + (advanced[key] ? cost : 0), 0);
@@ -322,9 +325,9 @@ function EmployeeModal({ form, advanced, photo, setPhoto, updateMaster, updateAd
           <div className="grid gap-4 md:grid-cols-3">
             {field('name','Full Name',{required:true})}{field('dob','Date of Birth',{type:'date',required:true})}
             <SelectField label="Gender" value={form.gender} onChange={(v)=>updateMaster('gender',v)} options={['','Male','Female','Other']} required />
-            {field('designation','Designation',{required:true})}{field('branch','Branch',{required:true})}{field('joining_date','Joining Date',{type:'date',required:true})}
+            {field('designation','Designation',{required:true})}<SelectField label="Client" value={form.client_id} onChange={(v)=>updateMaster('client_id',v)} options={['',...clients.map((c)=>String(c.id))]} labels={['Select client',...clients.map((c)=>c.company_name)]} required />{field('joining_date','Joining Date',{type:'date',required:true})}
             <SelectField label="Category" value={form.category} onChange={(v)=>updateMaster('category',v)} options={CATEGORY_OPTIONS} required />
-            {field('phone','Mobile Number',{required:true})}{field('employee_code','Employee Code / ID',{required:false})}
+            {field('phone','Mobile Number',{required:true})}<div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"><div className="text-xs font-semibold text-slate-600">Employee Code</div><div className="mt-1 text-xs text-slate-500">Generated automatically after creation, e.g. EMP-001.</div></div>
           </div>
           <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
             <div className="flex items-center gap-4">
@@ -394,4 +397,4 @@ function Metric({ icon: Icon, label, value }) { return <div className="rounded-2
 function StatusBadge({ value }) { const danger=['BENCH','EXPIRED'].includes(value) || String(value).includes('DAYS') && Number.parseInt(value) <= 30; return <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${danger?'bg-rose-50 text-rose-700':'bg-emerald-50 text-emerald-700'}`}>{value}</span>; }
 function SectionTitle({ icon: Icon, title, subtitle }) { return <div className="flex items-start gap-3"><div className="rounded-xl bg-slate-100 p-2.5 text-slate-600"><Icon className="h-5 w-5"/></div><div><h3 className="font-semibold text-slate-900">{title}</h3><p className="mt-1 text-xs text-slate-500">{subtitle}</p></div></div>; }
 function InfoCard({ icon: Icon, title, text }) { return <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><Icon className="h-5 w-5 text-slate-500"/><h3 className="mt-4 font-semibold text-slate-900">{title}</h3><p className="mt-1 text-sm leading-6 text-slate-500">{text}</p></div>; }
-function SelectField({ label, value, onChange, options, required=false }) { return <label className="block"><span className="mb-1.5 block text-xs font-semibold text-slate-600">{label}{required&&<span className="text-rose-500"> *</span>}</span><select value={value} required={required} onChange={(e)=>onChange(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-400">{options.map((x)=><option key={x} value={x}>{x || 'Select'}</option>)}</select></label>; }
+function SelectField({ label, value, onChange, options, labels, required=false }) { return <label className="block"><span className="mb-1.5 block text-xs font-semibold text-slate-600">{label}{required&&<span className="text-rose-500"> *</span>}</span><select value={value} required={required} onChange={(e)=>onChange(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-400">{options.map((x,i)=><option key={x || 'empty'} value={x}>{labels ? labels[i] : (x || 'Select')}</option>)}</select></label>; }
