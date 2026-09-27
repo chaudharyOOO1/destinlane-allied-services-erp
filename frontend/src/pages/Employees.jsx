@@ -273,7 +273,7 @@ export default function Employees() {
 function EmployeeModal({ form, advanced, photo, setPhoto, updateMaster, updateAdvanced, ifscState, validateIfsc, saving, save, close }) {
   const [section, setSection] = useState('identity');
   const uniformItems = [['uniform_shirt', 'Shirt', 450], ['uniform_trousers', 'Trousers', 650], ['uniform_shoes', 'Shoes', 900], ['uniform_belt', 'Belt', 150], ['uniform_cap', 'Cap', 120]];
-  const uniformCost = uniformItems.reduce((sum, [, , cost]) => sum + (advanced[arguments[0]] ? cost : 0), 0);
+  const uniformCost = uniformItems.reduce((sum, [key, , cost]) => sum + (advanced[key] ? cost : 0), 0);
 
   const field = (key, label, opts = {}) => (
     <label className="block">
