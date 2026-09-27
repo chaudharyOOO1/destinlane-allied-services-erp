@@ -1,176 +1,117 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
 import CommandPalette from '../components/CommandPalette';
 import {
-  LayoutDashboard,
-  Users,
-  MapPin,
-  ClipboardList,
-  ReceiptText,
-  Shield,
-  Calendar,
-  Search,
-  LogOut,
-  Zap,
-  ChevronDown,
-  Menu,
-  X,
-  Radio,
-  WalletCards,
-  Landmark,
-  FileCheck2,
-  AlertTriangle,
-  Bell,
-  ChevronRight
+  LayoutDashboard, Users, MapPin, ClipboardList, ReceiptText, Shield,
+  Calendar, Search, LogOut, ChevronDown, Menu, X, Radio, WalletCards,
+  Landmark, FileCheck2, AlertTriangle, Bell, ChevronRight, UserRound,
+  BriefcaseBusiness, UserCog, Building2, CircleDollarSign, PanelLeft
 } from 'lucide-react';
+
+const NAV_GROUPS = [
+  { label: 'Overview', items: [
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/erp', permission: 'dashboard.view' },
+    { icon: Landmark, label: 'Owner Executive', path: '/owner-executive', permission: 'owner.view' },
+  ]},
+  { label: 'Workforce', items: [
+    { icon: Users, label: 'Employees', path: '/employees', permission: 'employees.view' },
+    { icon: Calendar, label: 'Rosters', path: '/rosters', permission: 'rosters.view' },
+    { icon: ClipboardList, label: 'Attendance', path: '/attendance', permission: 'attendance.view' },
+  ]},
+  { label: 'Clients & Sites', items: [
+    { icon: BriefcaseBusiness, label: 'Clients', path: '/clients', permission: 'clients.view' },
+    { icon: MapPin, label: 'Sites & Deployment', path: '/sites', permission: 'sites.view' },
+  ]},
+  { label: 'Finance', items: [
+    { icon: ReceiptText, label: 'Billing & Invoices', path: '/billing', permission: 'billing.view' },
+    { icon: WalletCards, label: 'Payroll', path: '/payroll', permission: 'payroll.view' },
+    { icon: CircleDollarSign, label: 'Accounts & GST', path: '/accounts', permission: 'finance.view' },
+  ]},
+  { label: 'Control', items: [
+    { icon: FileCheck2, label: 'Compliance', path: '/compliance', permission: 'compliance.view' },
+    { icon: AlertTriangle, label: 'Risk Controls', path: '/risks', permission: 'risks.view' },
+    { icon: UserCog, label: 'User Management', path: '/users', permission: 'user_management.view' },
+  ]},
+];
 
 export default function MainLayout({ children, onQuickAction = null }) {
   const { user, logout, apiConnected, can } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
-  const [currentTime, setCurrentTime] = useState('');
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setCurrentTime(
-        now.toLocaleTimeString('en-US', {
-          hour12: false,
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        })
-      );
-    };
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   const role = user?.role || 'STAFF';
+  const visibleGroups = NAV_GROUPS
+    .map(group => ({ ...group, items: group.items.filter(item => !item.permission || can(item.permission)) }))
+    .filter(group => group.items.length > 0);
 
-  const fullNavItems = [
-    { icon: LayoutDashboard, label: 'Command Center', path: '/erp', permission: 'dashboard.view' },
-    { icon: Landmark, label: 'Owner Executive', path: '/owner-executive', permission: 'owner.view' },
-    { icon: Shield, label: 'Employees & HR', path: '/employees', permission: 'employees.view' },
-    { icon: Users, label: 'Clients', path: '/clients', permission: 'clients.view' },
-    { icon: MapPin, label: 'Sites & Deployment', path: '/sites', permission: 'sites.view' },
-    { icon: Calendar, label: 'Rosters', path: '/rosters', permission: 'rosters.view' },
-    { icon: ClipboardList, label: 'Attendance & OT', path: '/attendance', permission: 'attendance.view' },
-    { icon: ReceiptText, label: 'Invoices & Billing', path: '/billing', permission: 'billing.view' },
-    { icon: WalletCards, label: 'Payroll', path: '/payroll', permission: 'payroll.view' },
-    { icon: Landmark, label: 'Accounts & GST', path: '/accounts', permission: 'finance.view' },
-    { icon: FileCheck2, label: 'Compliance', path: '/compliance', permission: 'compliance.view' },
-    { icon: AlertTriangle, label: 'Risk Controls', path: '/risks', permission: 'risks.view' },
-    { icon: Users, label: 'User Management', path: '/users', permission: 'user_management.view' },
-    { icon: Shield, label: 'My Account', path: '/account', permission: null },
-  ];
-
-  const navItems = fullNavItems.filter((item) => !item.permission || can(item.permission));
+  const go = (path) => { navigate(path); setMobileMenuOpen(false); };
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-700 flex flex-col">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col">
       <CommandPalette
         isOpen={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         onAction={(action) => {
-          if (action === 'toggle_palette') setPaletteOpen((prev) => !prev);
+          if (action === 'toggle_palette') setPaletteOpen(v => !v);
           else if (onQuickAction) onQuickAction(action);
         }}
       />
 
-      <header className="h-16 shrink-0 bg-white border-b border-slate-200 flex items-center sticky top-0 z-30 shadow-sm">
-        <div className="w-full px-4 lg:px-6 flex items-center gap-4">
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100"
-            aria-label="Open menu"
-          >
+      <header className="h-16 shrink-0 bg-white/95 backdrop-blur border-b border-slate-200 sticky top-0 z-50">
+        <div className="h-full px-4 lg:px-6 flex items-center gap-4">
+          <button className="md:hidden p-2 rounded-lg hover:bg-slate-100" onClick={() => setMobileMenuOpen(v => !v)} aria-label="Open navigation">
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
-          <button
-            onClick={() => navigate('/erp')}
-            className="flex items-center gap-3 shrink-0 text-left"
-          >
-            <div className="w-9 h-9 rounded-lg bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-700">
-              <Shield className="w-5 h-5" />
+          <button onClick={() => go('/erp')} className="flex items-center gap-3 shrink-0 text-left group">
+            <div className="w-9 h-9 rounded-lg bg-slate-950 text-white flex items-center justify-center shadow-sm group-hover:bg-slate-800 transition-colors">
+              <Shield className="w-[18px] h-[18px]" />
             </div>
             <div className="hidden sm:block leading-tight">
-              <div className="flex items-baseline gap-2">
-                <span className="text-[15px] font-extrabold tracking-tight text-slate-900">FORTELLUS</span>
-                <span className="text-[15px] font-extrabold tracking-tight text-teal-700">ENTERPRISE ERP</span>
-              </div>
-              <p className="text-[9px] font-semibold tracking-[0.16em] text-slate-400 uppercase mt-0.5">Security & Facility Management ERP</p>
+              <div className="text-[15px] font-semibold tracking-[-0.02em] text-slate-950">NORTHLANE</div>
+              <div className="text-[9px] font-medium tracking-[0.16em] text-slate-400 uppercase">Allied Services ERP</div>
             </div>
           </button>
 
-          <div className="flex-1 max-w-xl mx-auto hidden md:block">
-            <button
-              onClick={() => setPaletteOpen(true)}
-              className="w-full h-10 flex items-center justify-between px-3.5 rounded-lg bg-slate-50 border border-slate-200 hover:border-teal-300 hover:bg-white text-slate-500 text-sm transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <Search className="w-4 h-4 text-slate-400" />
-                Search employees, clients, sites, invoices...
-              </span>
-              <span className="text-[11px] font-medium px-2 py-1 rounded-md bg-white border border-slate-200 text-slate-400">Ctrl K</span>
+          <div className="hidden md:flex flex-1 max-w-2xl mx-auto">
+            <button onClick={() => setPaletteOpen(true)} className="w-full max-w-xl mx-auto h-9 px-3 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-white hover:border-slate-300 flex items-center gap-2 text-xs text-slate-400 transition-colors">
+              <Search className="w-4 h-4" />
+              <span className="flex-1 text-left">Search anything...</span>
+              <kbd className="hidden lg:inline-flex px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[10px] text-slate-400">Ctrl K</kbd>
             </button>
           </div>
 
-          <div className="flex items-center gap-2 lg:gap-3 ml-auto">
-            <div className="hidden xl:flex items-center gap-2 text-xs text-slate-500 px-2">
-              <Radio className={`w-3.5 h-3.5 ${apiConnected ? 'text-emerald-500' : 'text-slate-400'}`} />
-              <span>{currentTime || '00:00:00'} IST</span>
-            </div>
-
-            <div
-              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold border ${apiConnected
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                : 'bg-amber-50 text-amber-700 border-amber-100'}`}
-              title={apiConnected ? 'Connected to live FastAPI backend' : 'Running in offline demo mode'}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${apiConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+          <div className="ml-auto flex items-center gap-1.5">
+            <div className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-semibold border ${apiConnected ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+              <Radio className="w-3 h-3" />
               {apiConnected ? 'LIVE' : 'OFFLINE'}
             </div>
-
-            <button className="hidden sm:flex w-9 h-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
+            <button className="w-9 h-9 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500" aria-label="Notifications">
               <Bell className="w-4 h-4" />
             </button>
-
             <div className="relative">
-              <button
-                onClick={() => setPersonaMenuOpen(!personaMenuOpen)}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                <div className="w-8 h-8 rounded-lg bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-700 font-bold text-xs">
+              <button onClick={() => setPersonaMenuOpen(v => !v)} className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-slate-100">
+                <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 text-xs font-semibold">
                   {user?.full_name?.charAt(0) || 'A'}
                 </div>
-                <div className="hidden lg:block text-left">
-                  <p className="text-xs font-semibold text-slate-800 leading-tight">{user?.full_name?.split(' ')[0] || 'Admin'}</p>
+                <div className="hidden sm:block text-left leading-tight">
+                  <p className="text-xs font-semibold text-slate-800">{user?.full_name?.split(' ')[0] || 'Admin'}</p>
                   <p className="text-[10px] text-slate-400 uppercase tracking-wider">{role}</p>
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                <ChevronDown className="hidden sm:block w-3.5 h-3.5 text-slate-400" />
               </button>
-
               {personaMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl border border-slate-200 p-2 shadow-xl z-40">
-                  <div className="px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-100 mb-1">
+                <div className="absolute right-0 top-full mt-2 w-60 bg-white border border-slate-200 rounded-xl shadow-xl p-2">
+                  <div className="px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-100">
                     <p className="text-xs font-semibold text-slate-800">{user?.full_name || 'Account'}</p>
                     <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">{role}</p>
                   </div>
-                  <div className="h-px bg-slate-100 my-2" />
-                  <button
-                    onClick={() => { logout(); navigate('/login'); }}
-                    className="w-full text-left px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 rounded-lg flex items-center gap-2"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    Sign Out
+                  <button onClick={() => { logout(); navigate('/login'); }} className="mt-2 w-full px-3 py-2 rounded-lg text-left text-xs font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2">
+                    <LogOut className="w-3.5 h-3.5" /> Sign out
                   </button>
                 </div>
               )}
@@ -180,63 +121,66 @@ export default function MainLayout({ children, onQuickAction = null }) {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        <aside className="hidden md:flex w-64 shrink-0 bg-white border-r border-slate-200 flex-col">
-          <div className="px-4 pt-5 pb-3">
-            <p className="text-[10px] text-slate-400 uppercase tracking-[0.16em] font-bold px-2">Workspace</p>
-          </div>
-
-          <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
-            {navItems.filter((item) => !item.ownerOnly || role === 'OWNER').map((item) => {
-              const isActive = location.pathname === item.path;
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.path}
-                  onClick={() => navigate(item.path)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
-                    ? 'bg-teal-50 text-teal-700 border border-teal-100'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
-                >
-                  <Icon className={`w-[18px] h-[18px] shrink-0 ${isActive ? 'text-teal-700' : 'text-slate-400'}`} />
-                  <span className="truncate">{item.label}</span>
-                  {isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto shrink-0" />}
-                </button>
-              );
-            })}
-          </nav>
-
-          <div className="p-3 border-t border-slate-200">
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-              <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                <span className="flex items-center gap-2"><Zap className="w-3.5 h-3.5 text-teal-600" />System Health</span>
-                <span className="text-emerald-600">99.9%</span>
-              </div>
-              <div className="w-full h-1.5 bg-slate-200 rounded-full mt-2 overflow-hidden">
-                <div className="w-[99.9%] h-full bg-teal-600 rounded-full" />
-              </div>
+        <aside className="hidden md:flex w-[232px] shrink-0 bg-white border-r border-slate-200 flex-col">
+          <div className="px-4 py-5 border-b border-slate-100">
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] font-semibold text-slate-400">
+              <PanelLeft className="w-3.5 h-3.5" /> Workspace
             </div>
-            <p className="text-[10px] text-slate-400 px-1 mt-2">Fortellus Security & Facility Management ERP</p>
+          </div>
+          <nav className="flex-1 px-3 py-3 overflow-y-auto">
+            {visibleGroups.map(group => (
+              <div key={group.label} className="mb-5">
+                <p className="px-2 mb-1.5 text-[10px] uppercase tracking-[0.14em] font-semibold text-slate-400">{group.label}</p>
+                <div className="space-y-0.5">
+                  {group.items.map(item => {
+                    const Icon = item.icon;
+                    const active = location.pathname === item.path || (item.path === '/erp' && location.pathname === '/dashboard');
+                    return (
+                      <button key={item.path} onClick={() => go(item.path)} className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition-colors ${active ? 'bg-slate-100 text-slate-950' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'}`}>
+                        <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-slate-950' : 'text-slate-400'}`} />
+                        <span className="truncate">{item.label}</span>
+                        {active && <ChevronRight className="w-3 h-3 ml-auto text-slate-400" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
+          <div className="p-3 border-t border-slate-200">
+            <button onClick={() => go('/account')} className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-white text-left">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-white border border-slate-200 flex items-center justify-center"><UserRound className="w-3.5 h-3.5 text-slate-500" /></div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold text-slate-800 truncate">{user?.full_name || 'Account'}</p>
+                  <p className="text-[10px] text-slate-400 truncate">Manage your account</p>
+                </div>
+              </div>
+            </button>
+            <p className="text-[9px] text-slate-400 px-1 mt-2">Northlane Allied Services · ERP</p>
           </div>
         </aside>
 
         {mobileMenuOpen && (
-          <div className="md:hidden fixed inset-x-0 top-16 bottom-0 bg-white z-40 p-4 overflow-y-auto">
-            <nav className="space-y-1">
-              {navItems.map((item) => (
-                <button
-                  key={item.path}
-                  onClick={() => { navigate(item.path); setMobileMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium ${location.pathname === item.path ? 'bg-teal-50 text-teal-700' : 'text-slate-600 hover:bg-slate-50'}`}
-                >
-                  <item.icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </nav>
+          <div className="md:hidden fixed inset-x-0 top-16 bottom-0 bg-white z-40 overflow-y-auto p-4">
+            <div className="pb-3 mb-3 border-b border-slate-200">
+              <p className="text-xs font-semibold text-slate-900">Northlane Allied Services</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">{role} workspace</p>
+            </div>
+            {visibleGroups.map(group => (
+              <div key={group.label} className="mb-5">
+                <p className="px-2 mb-1.5 text-[10px] uppercase tracking-[0.14em] font-semibold text-slate-400">{group.label}</p>
+                {group.items.map(item => {
+                  const Icon = item.icon;
+                  return <button key={item.path} onClick={() => go(item.path)} className="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm text-slate-700 hover:bg-slate-50"><Icon className="w-5 h-5 text-slate-400" /><span>{item.label}</span></button>;
+                })}
+              </div>
+            ))}
+            <button onClick={() => go('/account')} className="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm text-slate-700 hover:bg-slate-50"><UserRound className="w-5 h-5 text-slate-400" />My Account</button>
           </div>
         )}
 
-        <main className="flex-1 min-w-0 overflow-y-auto bg-[#f5f7fb]">
+        <main className="flex-1 min-w-0 overflow-y-auto bg-[#f8fafc]">
           <div className="max-w-[1440px] mx-auto p-4 sm:p-6 lg:p-8">
             {children}
           </div>
