@@ -55,6 +55,8 @@ def create_employee(payload: dict, db: Session = Depends(get_db), current_user=D
         ifsc = None
 
     client_id = payload.get("client_id")
+    if client_id in (None, ""):
+        raise HTTPException(422, "Client mapping is required for every employee.")
     if client_id not in (None, ""):
         try:
             client_id = int(client_id)
@@ -67,6 +69,7 @@ def create_employee(payload: dict, db: Session = Depends(get_db), current_user=D
         client_id = None
 
     # Employee code is system-generated. It is never accepted from the browser.
+    db.execute(text("select pg_advisory_xact_lock(73192841)"))
     next_code = db.execute(text("""
         select coalesce(max((substring(employee_code from 'EMP-([0-9]+)'))::bigint), 0) + 1 as next_number
         from employees
