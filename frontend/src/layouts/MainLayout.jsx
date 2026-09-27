@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Users, MapPin, ClipboardList, ReceiptText, Shield,
   Calendar, Search, LogOut, ChevronDown, Menu, X, Radio, WalletCards,
   Landmark, FileCheck2, AlertTriangle, Bell, ChevronRight, UserRound,
-  BriefcaseBusiness, UserCog, Building2, CircleDollarSign, PanelLeft
+  BriefcaseBusiness, UserCog, Building2, CircleDollarSign, PanelLeft, Database
 } from 'lucide-react';
 
 const NAV_GROUPS = [
@@ -32,6 +32,7 @@ const NAV_GROUPS = [
     { icon: FileCheck2, label: 'Compliance', path: '/compliance', permission: 'compliance.view' },
     { icon: AlertTriangle, label: 'Risk Controls', path: '/risks', permission: 'risks.view' },
     { icon: UserCog, label: 'User Management', path: '/users', permission: 'user_management.view' },
+    { icon: Database, label: 'IFSC Master', path: '/ifsc-master', permission: 'user_management.view' },
   ]},
 ];
 
