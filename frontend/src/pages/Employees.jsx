@@ -36,6 +36,15 @@ const SUBTABS = [
 
 const CATEGORY_OPTIONS = ['GUARD', 'GUNMAN', 'SUPERVISOR', 'FIELD_OFFICER', 'JANITOR', 'CLEANER', 'FACILITY_ATTENDANT', 'GDA', 'NURSE_ASSISTANT', 'HOSPITAL_ATTENDANT'];
 
+function verhoeff(number) {
+  if (!/^\d{12}$/.test(number)) return false;
+  const d=[[0,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4],[5,8,0,3,7,9,1,6,4,2],[8,7,9,0,6,4,3,5,2,1],[6,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4],[5,8,0,3,7,9,1,6,4,2],[8,7,9,0,6,4,3,5,2,1],[6,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4]];
+  const p=[[0,1,2,3,4,5,6,7,8,9],[0,5,7,8,9,4,2,1,3,6],[0,8,1,4,6,3,5,9,7,2],[0,9,4,7,2,6,3,8,5,1],[0,4,8,1,6,2,9,5,7,3],[0,2,9,5,1,7,4,8,6,3],[0,7,3,6,4,5,2,9,8,1],[0,3,5,2,7,9,8,6,1,4]];
+  let c=0;
+  [...number].reverse().forEach((n,i)=>{ c=d[c][p[i%8][Number(n)]]; });
+  return c===0;
+}
+
 export default function Employees() {
   const [rows, setRows] = useState([]);
   const [staff, setStaff] = useState([]);
@@ -127,6 +136,14 @@ export default function Employees() {
     setSaving(true);
     setError('');
 
+    const aadhaar = String(form.aadhaar_no || '').replace(/\s/g, '');
+    if (aadhaar && !verhoeff(aadhaar)) {
+      setError('Aadhaar number failed the 12-digit Verhoeff checksum validation.');
+      setSaving(false);
+      setSubtab('master');
+      return;
+    }
+
     const ifscOk = await validateIfsc();
     if (!ifscOk) {
       setSaving(false);
@@ -135,11 +152,9 @@ export default function Employees() {
     }
 
     try {
-      // Current master API persists the fields it supports. Advanced compliance,
-      // payroll, document and photo persistence will be wired to their dedicated
-      // backend endpoints when those endpoints are available.
       await api.post('/erp/employees', {
         ...form,
+        ...advanced,
         intimation_id: form.intimation_id || undefined,
         dob: form.dob || undefined,
         gender: form.gender || undefined,
@@ -148,12 +163,13 @@ export default function Employees() {
         site_id: form.site_id || undefined,
         joining_date: form.joining_date || undefined,
         category: form.category || undefined,
-        aadhaar_no: form.aadhaar_no || undefined,
+        aadhaar_no: aadhaar || undefined,
         pan_no: form.pan_no || undefined,
         permanent_address: form.permanent_address || undefined,
         present_address: form.present_address || undefined,
         emergency_contact: form.emergency_contact || undefined,
         marital_status: form.marital_status || undefined,
+        bank_ifsc: advanced.bank_ifsc?.trim().toUpperCase() || undefined,
       });
       setOpen(false);
       setForm(EMPTY_MASTER);
