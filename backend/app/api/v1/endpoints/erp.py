@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, UploadFile, File, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -8,6 +8,106 @@ from app.api.deps import require_admin, require_hr_or_admin, require_accounts_or
 from app.core.database import get_db
 
 router = APIRouter()
+
+@router.get("/ifsc")
+def list_ifsc(
+    search: str | None = Query(None),
+    bank: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    sql = """select ifsc_code, bank_name, branch_name, address, city, district, state, source, approved, approved_at
+             from ifsc_master where approved=true"""
+    params = {}
+    if search:
+        sql += " and (ifsc_code ilike :search or branch_name ilike :search or bank_name ilike :search)"
+        params["search"] = f"%{search.strip()}%"
+    if bank:
+        sql += " and bank_name ilike :bank"
+        params["bank"] = f"%{bank.strip()}%"
+    sql += " order by bank_name, branch_name, ifsc_code limit :limit"
+    params["limit"] = limit
+    return [dict(r) for r in db.execute(text(sql), params).mappings().all()]
+
+
+@router.get("/ifsc/stats")
+def ifsc_stats(db: Session = Depends(get_db), current_user=Depends(require_admin)):
+    row = db.execute(text("""
+        select count(*) as total,
+               count(*) filter (where approved=true) as approved,
+               count(distinct bank_name) as banks
+        from ifsc_master
+    """)).mappings().one()
+    return dict(row)
+
+
+@router.post("/ifsc/import-csv")
+async def import_ifsc_csv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    import csv, io, re
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(422, "Upload a CSV file. Required columns: IFSC, Bank, Branch, Address, City, District, State.")
+    raw = await file.read()
+    if len(raw) > 25 * 1024 * 1024:
+        raise HTTPException(413, "IFSC CSV is larger than the 25 MB limit.")
+    try:
+        text_data = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(422, "CSV must be UTF-8 encoded.")
+    reader = csv.DictReader(io.StringIO(text_data))
+    if not reader.fieldnames:
+        raise HTTPException(422, "CSV has no header row.")
+    aliases = {
+        "ifsc": ["ifsc", "ifsc_code", "ifsc code"],
+        "bank": ["bank", "bank_name", "bank name"],
+        "branch": ["branch", "branch_name", "branch name"],
+        "address": ["address"],
+        "city": ["city"],
+        "district": ["district"],
+        "state": ["state"],
+    }
+    normalized = {str(h).strip().lower(): h for h in reader.fieldnames}
+    def col(key):
+        for alias in aliases[key]:
+            if alias in normalized:
+                return normalized[alias]
+        return None
+    ifsc_col, bank_col = col("ifsc"), col("bank")
+    if not ifsc_col or not bank_col:
+        raise HTTPException(422, "CSV must contain IFSC and Bank columns.")
+    rows=[]; invalid=0
+    for source_row in reader:
+        code=str(source_row.get(ifsc_col) or "").strip().upper().replace(" ", "")
+        bank_name=str(source_row.get(bank_col) or "").strip()
+        if not re.fullmatch(r"[A-Z]{4}0[A-Z0-9]{6}", code) or not bank_name:
+            invalid += 1
+            continue
+        rows.append({
+            "ifsc_code": code, "bank_name": bank_name,
+            "branch_name": str(source_row.get(col("branch")) or "").strip() if col("branch") else None,
+            "address": str(source_row.get(col("address")) or "").strip() if col("address") else None,
+            "city": str(source_row.get(col("city")) or "").strip() if col("city") else None,
+            "district": str(source_row.get(col("district")) or "").strip() if col("district") else None,
+            "state": str(source_row.get(col("state")) or "").strip() if col("state") else None,
+        })
+    if not rows:
+        raise HTTPException(422, "No valid IFSC records were found in the CSV.")
+    for row in rows:
+        db.execute(text("""
+            insert into ifsc_master(ifsc_code,bank_name,branch_name,address,city,district,state,source,approved,approved_at,updated_at)
+            values(:ifsc_code,:bank_name,:branch_name,:address,:city,:district,:state,'ADMIN_CSV',true,now(),now())
+            on conflict(ifsc_code) do update set
+              bank_name=excluded.bank_name, branch_name=excluded.branch_name, address=excluded.address,
+              city=excluded.city, district=excluded.district, state=excluded.state,
+              source='ADMIN_CSV', approved=true, approved_at=now(), updated_at=now()
+        """), row)
+    db.commit()
+    return {"imported": len(rows), "invalid_rows_skipped": invalid, "filename": file.filename}
+
 
 @router.get("/summary")
 def erp_summary(db: Session = Depends(get_db), current_user=Depends(require_admin_or_staff)):
