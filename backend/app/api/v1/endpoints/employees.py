@@ -9,7 +9,12 @@ router = APIRouter()
 
 @router.get("")
 def list_employees(db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
-    return [dict(r) for r in db.execute(text("select * from employees order by created_at desc")).mappings().all()]
+    return [dict(r) for r in db.execute(text("""
+        select e.*, c.company_name as client_name
+        from employees e
+        left join clients c on c.id = e.client_id
+        order by e.created_at desc
+    """)).mappings().all()]
 
 @router.get("/ifsc/validate")
 def validate_ifsc(ifsc: str = Query(..., min_length=11, max_length=11), db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
@@ -144,6 +149,17 @@ def update_employee(employee_id: UUID, payload: dict, db: Session = Depends(get_
     allowed={"name","phone","status","intimation_id","dob","gender","designation","branch","site_id","joining_date","category","aadhaar_no","pan_no","permanent_address","present_address","emergency_contact","marital_status","status_reason","client_id"}
     data={k:v for k,v in payload.items() if k in allowed}
     if not data: raise HTTPException(422,"No editable fields supplied")
+    if "client_id" in data:
+        if data["client_id"] in (None, ""):
+            data["client_id"] = None
+        else:
+            try:
+                data["client_id"] = int(data["client_id"])
+            except (TypeError, ValueError):
+                raise HTTPException(422, "A valid client is required.")
+            client = db.execute(text("select id from clients where id=:client_id and is_active=true"), {"client_id": data["client_id"]}).first()
+            if not client:
+                raise HTTPException(422, "Selected client is not active or does not exist.")
     data["id"]=str(employee_id); sets=", ".join(f"{k}=:{k}" for k in data if k!="id")
     row=db.execute(text(f"update employees set {sets} where id=:id returning *"),data).mappings().first()
     if not row: db.rollback(); raise HTTPException(404,"Employee not found")
