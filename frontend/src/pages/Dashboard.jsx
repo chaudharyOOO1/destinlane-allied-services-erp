@@ -163,13 +163,13 @@ export default function Dashboard() {
           <div>
             <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono mb-1">
               <Radio className="w-3.5 h-3.5 animate-pulse" />
-              <span>LIVE OPERATIONAL COMMAND HUB</span>
+              <span>NORTHLANE ALLIED SERVICES // OPERATIONS</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Security Control Room
+              Operations Dashboard
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Surveillance telemetry, guard force allocations, and billing status for {user?.full_name || 'Administrator'}.
+              Workforce, deployment, attendance and financial operations for {user?.full_name || 'Administrator'}.
             </p>
           </div>
 
@@ -201,7 +201,7 @@ export default function Dashboard() {
         {/* 4 Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
-            label="Active Guard Force"
+            label="Active Employees"
             value={activeGuardsCount}
             icon={Shield}
             trend="+12%"
@@ -210,7 +210,7 @@ export default function Dashboard() {
             sparkline={[50, 60, 55, 70, 85, 80, 95]}
           />
           <StatCard
-            label="Deployment Sites"
+            label="Active Sites"
             value={totalSitesCount}
             icon={MapPin}
             trend="+2"
@@ -223,16 +223,16 @@ export default function Dashboard() {
             value={`${todayAttendanceRate}%`}
             icon={ClipboardList}
             trend="+3%"
-            description="Verified Guard Check-ins"
+            description="Verified Employee Attendance"
             glow="border-emerald-500/30"
             sparkline={[85, 90, 88, 92, 95, 94, 98]}
           />
           <StatCard
-            label="Monthly Revenue"
+            label="Monthly Billing"
             value={formatCurrency(totalBilled)}
             icon={ReceiptText}
             trend="+18%"
-            description="August 2026 Billing"
+            description="Current Billing Period"
             glow="border-amber-500/30"
             sparkline={[30, 45, 60, 55, 75, 85, 92]}
           />
@@ -243,8 +243,8 @@ export default function Dashboard() {
           <div className="lg:col-span-2 space-y-6">
             <GlassCard glow>
               <GlassCard.Header
-                title="Real-Time Guard Deployments"
-                subtitle="Active security rosters and shift assignments per facility"
+                title="Workforce & Deployment Overview"
+                subtitle="Current employee deployments, rosters and site coverage"
                 badge
                 action={
                   <button
@@ -328,8 +328,8 @@ export default function Dashboard() {
           <div className="space-y-6">
             <GlassCard>
               <GlassCard.Header
-                title="Revenue Health"
-                subtitle="Monthly billing pipeline & GST summary"
+                title="Billing & GST Overview"
+                subtitle="Billing status, collections and GST visibility"
                 action={
                   <button
                     onClick={() => setInvoiceModalOpen(true)}
@@ -381,8 +381,8 @@ export default function Dashboard() {
 
             <GlassCard>
               <GlassCard.Header
-                title="Activity Event Stream"
-                subtitle="Latest verified operations log"
+                title="Recent Activity"
+                subtitle="Latest verified workforce and attendance activity"
                 badge
               />
 
@@ -614,7 +614,7 @@ export default function Dashboard() {
 
             <GlassCard>
               <GlassCard.Header
-                title="Security Emergency Hotline"
+                title="Operations Contacts"
                 subtitle="Direct connection to your facility dispatch team"
               />
               <div className="space-y-2 text-xs">
@@ -649,15 +649,15 @@ export default function Dashboard() {
 
     return (
       <div className="space-y-6">
-        {/* Guard Header */}
+        {/* Employee Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
           <div>
             <div className="flex items-center gap-2 text-emerald-400 text-xs font-mono mb-1">
               <Shield className="w-3.5 h-3.5 animate-pulse" />
-              <span>FIELD OFFICER TERMINAL // SHIELD #SG-001</span>
+              <span>EMPLOYEE WORKSPACE</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Officer Console // {user?.full_name || 'Ramesh Kumar'}
+              Employee Console // {user?.full_name || 'Ramesh Kumar'}
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
               Personal post assignment, digital gate attendance terminal, and post orders.
@@ -683,7 +683,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Guard Tailored Stat Cards */}
+        {/* Employee Workspace Summary */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             label="Assigned Post"
@@ -723,7 +723,7 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Guard Main Panels */}
+        {/* Employee Workspace */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             {/* Digital Clock-In & Punch Terminal */}
@@ -767,7 +767,7 @@ export default function Dashboard() {
             {/* Upcoming Duty Schedule */}
             <GlassCard>
               <GlassCard.Header
-                title="My Assigned Duty Shifts (Next 7 Days)"
+                title="My Assigned Shifts (Next 7 Days)"
                 subtitle="Your approved shift schedule issued by Central Dispatch"
               />
 
@@ -811,7 +811,7 @@ export default function Dashboard() {
           <div className="space-y-6">
             <GlassCard glow>
               <GlassCard.Header
-                title="Post Emergency Protocol"
+                title="Operations Support"
                 subtitle="Immediate direct-dial dispatch contacts"
               />
 
@@ -853,7 +853,7 @@ export default function Dashboard() {
 
             <GlassCard>
               <GlassCard.Header
-                title="My Recent Verified Attendance"
+                title="My Recent Attendance"
                 subtitle="Recorded punch times and overtime"
               />
 
