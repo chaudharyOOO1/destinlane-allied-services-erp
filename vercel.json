@@ -5,47 +5,28 @@
       "root": "frontend/",
       "framework": "vite",
       "rewrites": [
-        {
-          "source": "/(.*)",
-          "destination": "/index.html"
-        }
+        { "source": "/(.*)", "destination": "/index.html" }
       ]
     },
     "backend": {
       "root": "backend/",
       "entrypoint": "app.main:app"
+    },
+    "employee-app": {
+      "root": "employee-app/",
+      "framework": "vite",
+      "rewrites": [
+        { "source": "/(.*)", "destination": "/index.html" }
+      ]
     }
   },
   "rewrites": [
-    {
-      "source": "/health",
-      "destination": {
-        "service": "backend"
-      }
-    },
-    {
-      "source": "/docs",
-      "destination": {
-        "service": "backend"
-      }
-    },
-    {
-      "source": "/openapi.json",
-      "destination": {
-        "service": "backend"
-      }
-    },
-    {
-      "source": "/api/(.*)",
-      "destination": {
-        "service": "backend"
-      }
-    },
-    {
-      "source": "/(.*)",
-      "destination": {
-        "service": "frontend"
-      }
-    }
+    { "source": "/health", "destination": { "service": "backend" } },
+    { "source": "/docs", "destination": { "service": "backend" } },
+    { "source": "/openapi.json", "destination": { "service": "backend" } },
+    { "source": "/api/(.*)", "destination": { "service": "backend" } },
+    { "source": "/employee", "destination": { "service": "employee-app" } },
+    { "source": "/employee/(.*)", "destination": { "service": "employee-app" } },
+    { "source": "/(.*)", "destination": { "service": "frontend" } }
   ]
 }

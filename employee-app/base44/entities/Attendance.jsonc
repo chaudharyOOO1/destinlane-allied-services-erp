@@ -1,0 +1,71 @@
+{
+  "name": "Attendance",
+  "type": "object",
+  "properties": {
+    "employee_id": {
+      "type": "string"
+    },
+    "employee_name": {
+      "type": "string"
+    },
+    "check_in_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "check_out_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "present",
+        "late",
+        "half_day",
+        "absent",
+        "leave"
+      ],
+      "default": "present"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "work_hours": {
+      "type": "number"
+    },
+    "photo_url": {
+      "type": "string",
+      "description": "Login selfie, stamped with punch time, location name and GPS"
+    },
+    "location_name": {
+      "type": "string",
+      "description": "Human-readable place name resolved from the GPS coordinates at punch time"
+    },
+    "latitude": {
+      "type": "number",
+      "description": "GPS latitude captured at punch time"
+    },
+    "longitude": {
+      "type": "number",
+      "description": "GPS longitude captured at punch time"
+    },
+    "location_accuracy": {
+      "type": "number",
+      "description": "GPS accuracy in meters at punch time"
+    }
+  },
+  "required": [
+    "employee_id",
+    "date"
+  ],
+  "rls": {
+    "read": true,
+    "create": true,
+    "update": true,
+    "delete": true
+  }
+}

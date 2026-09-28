@@ -1,0 +1,47 @@
+name: Build Employee Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Setup Java JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses || true
+      - name: Install employee app dependencies
+        working-directory: employee-app
+        run: |
+          npm install
+          npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/camera
+      - name: Initialize Capacitor and build
+        working-directory: employee-app
+        run: |
+          npx cap init "Northlane Employee" "com.northlane.employee" --web-dir dist
+          npm run build
+          npx cap add android
+          npx cap sync
+      - name: Build APK
+        working-directory: employee-app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: northlane-employee-app-debug-apk
+          path: employee-app/android/app/build/outputs/apk/debug/app-debug.apk

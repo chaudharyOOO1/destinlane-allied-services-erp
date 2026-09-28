@@ -1,0 +1,68 @@
+{
+  "name": "Employee",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "employee_code": {
+      "type": "string"
+    },
+    "doj": {
+      "type": "string",
+      "format": "date"
+    },
+    "assigned_site": {
+      "type": "string"
+    },
+    "shift_start": {
+      "type": "string"
+    },
+    "shift_end": {
+      "type": "string"
+    },
+    "designation": {
+      "type": "string"
+    },
+    "monthly_salary": {
+      "type": "number"
+    },
+    "bank_name": {
+      "type": "string"
+    },
+    "account_number": {
+      "type": "string"
+    },
+    "site_latitude": {
+      "type": "number"
+    },
+    "site_longitude": {
+      "type": "number"
+    },
+    "geofence_radius": {
+      "type": "number",
+      "default": 200
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active"
+    }
+  },
+  "required": [
+    "name",
+    "phone"
+  ],
+  "rls": {
+    "read": true,
+    "create": true,
+    "update": true,
+    "delete": true
+  }
+}

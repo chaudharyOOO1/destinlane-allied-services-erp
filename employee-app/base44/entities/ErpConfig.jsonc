@@ -1,0 +1,53 @@
+{
+  "name": "ErpConfig",
+  "type": "object",
+  "properties": {
+    "api_base_url": {
+      "type": "string",
+      "description": "Base URL of the ERP API, e.g. https://erp.fortellus.com/api"
+    },
+    "api_key": {
+      "type": "string",
+      "description": "Authentication key / bearer token for the ERP API"
+    },
+    "employee_endpoint": {
+      "type": "string",
+      "description": "Path appended to base URL to fetch employees, e.g. /employees",
+      "default": "/employees"
+    },
+    "attendance_endpoint": {
+      "type": "string",
+      "description": "Path appended to base URL to push attendance records, e.g. /attendance",
+      "default": "/attendance"
+    },
+    "auto_sync": {
+      "type": "boolean",
+      "default": false
+    },
+    "last_sync_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_sync_status": {
+      "type": "string",
+      "enum": [
+        "success",
+        "failed",
+        "never"
+      ],
+      "default": "never"
+    },
+    "last_sync_message": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "api_base_url"
+  ],
+  "rls": {
+    "read": true,
+    "create": true,
+    "update": true,
+    "delete": true
+  }
+}
