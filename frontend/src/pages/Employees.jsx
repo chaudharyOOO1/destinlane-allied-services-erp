@@ -5,7 +5,7 @@ import {
   AlertTriangle, Banknote, BadgeCheck, CalendarDays, Camera, CheckCircle2,
   ChevronRight, ClipboardCheck, Download, FileCheck2, FileText, HeartPulse,
   Landmark, LockKeyhole, Plus, RefreshCw, Search, ShieldCheck, UserRound,
-  UsersRound, X, Upload, WalletCards
+  UsersRound, X, Upload, WalletCards, FileUp, Eye, ShieldAlert
 } from 'lucide-react';
 
 const EMPTY_MASTER = {
@@ -26,6 +26,21 @@ const EMPTY_ADVANCED = {
   psara_batch_no: '', psara_skill_level: '', psara_training_expiry: '',
   form11_uploaded: false, passbook_uploaded: false, gun_license_uploaded: false,
 };
+
+const DOCUMENT_TYPES = [
+  ['FORM_11', 'Form 11', true],
+  ['FORM_11A', 'Form 11A', false],
+  ['POLICE_VERIFICATION', 'Police Verification', true],
+  ['MEDICAL_FITNESS', 'Medical / Fitness Certificate', true],
+  ['ESIC_FORM', 'ESIC Form', false],
+  ['BANK_PASSBOOK', 'Bank Passbook', true],
+  ['BANK_CHEQUE', 'Cancelled Cheque', false],
+  ['AADHAAR', 'Aadhaar Card', true],
+  ['PAN', 'PAN Card', true],
+  ['ADDRESS_PROOF', 'Address Proof', false],
+  ['PSARA_CERTIFICATE', 'PSARA Certificate', false],
+  ['GUN_LICENSE', 'Gun Licence', false],
+];
 
 const SUBTABS = [
   ['master', 'Create Master', UserRound],
@@ -59,7 +74,7 @@ export default function Employees() {
   const [advanced, setAdvanced] = useState(EMPTY_ADVANCED);
   const [saving, setSaving] = useState(false);
   const [photo, setPhoto] = useState('');
-  const [ifscState, setIfscState] = useState({ state: 'idle', message: '' });
+  const [ifscState, setIfscState] = useState({ state: 'idle', message: '' });\n  const [createdEmployee, setCreatedEmployee] = useState(null);\n  const [documents, setDocuments] = useState([]);\n  const [documentBusy, setDocumentBusy] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -187,6 +202,53 @@ export default function Employees() {
     }
   }
 
+  async function loadDocuments(employeeId) {
+    if (!employeeId) return;
+    try {
+      const r = await api.get(`/erp/employees/${employeeId}/documents`);
+      setDocuments(r.data || []);
+    } catch (e) {
+      setError(e.response?.data?.detail || 'Unable to load employee documents.');
+    }
+  }
+
+  async function uploadDocument(file, documentType) {
+    if (!createdEmployee?.id || !file) return;
+    setDocumentBusy(true);
+    setError('');
+    try {
+      const body = new FormData();
+      body.append('document_type', documentType);
+      body.append('file', file);
+      const r = await api.post(`/erp/employees/${createdEmployee.id}/documents`, body, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setDocuments((items) => [r.data, ...items]);
+    } catch (e) {
+      setError(e.response?.data?.detail || 'Document upload failed.');
+    } finally {
+      setDocumentBusy(false);
+    }
+  }
+
+  async function openDocument(documentId) {
+    if (!createdEmployee?.id) return;
+    try {
+      const r = await api.post(`/erp/employees/${createdEmployee.id}/documents/${documentId}/sign`);
+      window.open(r.data.url, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      setError(e.response?.data?.detail || 'Unable to open document.');
+    }
+  }
+
+  function setSectionForDocuments() {
+    setOpen(true);
+    setTimeout(() => {
+      const event = new CustomEvent('destinlane-employee-documents');
+      window.dispatchEvent(event);
+    }, 0);
+  }
+
   function openCreate() {
     setForm({ ...EMPTY_MASTER, employee_code: '', intimation_id: '' });
     setAdvanced(EMPTY_ADVANCED);
@@ -289,8 +351,8 @@ export default function Employees() {
   );
 }
 
-function EmployeeModal({ form, advanced, photo, setPhoto, clients, updateMaster, updateAdvanced, ifscState, validateIfsc, saving, save, close }) {
-  const [section, setSection] = useState('identity');
+function EmployeeModal({ form, advanced, photo, setPhoto, clients, updateMaster, updateAdvanced, ifscState, validateIfsc, saving, save, close, createdEmployee, documents, documentBusy, uploadDocument, openDocument }) {
+  const [section, setSection] = useState('identity');\n  useEffect(() => {\n    const handler = () => setSection('documents');\n    window.addEventListener('destinlane-employee-documents', handler);\n    return () => window.removeEventListener('destinlane-employee-documents', handler);\n  }, []);
   const uniformItems = [['uniform_shirt', 'Shirt', 450], ['uniform_trousers', 'Trousers', 650], ['uniform_shoes', 'Shoes', 900], ['uniform_belt', 'Belt', 150], ['uniform_cap', 'Cap', 120]];
   const uniformCost = uniformItems.reduce((sum, [key, , cost]) => sum + (advanced[key] ? cost : 0), 0);
 
@@ -316,7 +378,7 @@ function EmployeeModal({ form, advanced, photo, setPhoto, clients, updateMaster,
       </div>
 
       <div className="border-b border-slate-200 px-4 md:px-7">
-        <div className="flex gap-1 overflow-x-auto py-2">{[['identity','Identity'],['personal','Personal & KYC'],['nominee','Nominee'],['bank','Bank'],['arms','Arms'],['uniform','Uniform EMI']].map(([id,label]) => <button type="button" key={id} onClick={() => setSection(id)} className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold ${section === id ? 'bg-slate-950 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>{label}</button>)}</div>
+        <div className="flex gap-1 overflow-x-auto py-2">{[['identity','Identity'],['personal','Personal & KYC'],['nominee','Nominee'],['bank','Bank'],['arms','Arms'],['uniform','Uniform EMI'],['documents','Documents']].map(([id,label]) => <button type="button" key={id} onClick={() => setSection(id)} className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold ${section === id ? 'bg-slate-950 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>{label}</button>)}</div>
       </div>
 
       <form onSubmit={save} className="max-h-[72vh] overflow-y-auto p-5 md:p-7">
@@ -358,7 +420,7 @@ function EmployeeModal({ form, advanced, photo, setPhoto, clients, updateMaster,
           {form.category === 'GUNMAN' ? <div className="grid gap-4 md:grid-cols-2">{advField('gun_license_no','Gun License Number',{required:true})}{advField('arms_issuing_authority','Issuing Authority',{required:true})}{advField('gun_license_expiry','Expiry Date',{type:'date',required:true})}{advField('arms_caliber','Caliber',{required:true})}{advField('weapon_serial_no','Weapon Serial Number',{required:true})}{advField('ammunition_count','Ammunition Count',{type:'number',required:true})}</div> : <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">Arms fields are not applicable to the selected category. Select <strong>GUNMAN</strong> if an arms record is required.</div>}
         </div>}
 
-        {section === 'uniform' && <div className="space-y-6">
+        {section === 'documents' && <DocumentUploader employee={createdEmployee} documents={documents} busy={documentBusy} uploadDocument={uploadDocument} openDocument={openDocument} />}\n\n        {section === 'uniform' && <div className="space-y-6">
           <SectionTitle icon={WalletCards} title="Dress / Uniform EMI Calculator" subtitle="Select issued items to calculate the recovery amount." />
           <div className="grid gap-3 md:grid-cols-2">{uniformItems.map(([key,label,cost]) => <label key={key} className="flex items-center justify-between rounded-xl border border-slate-200 p-4"><span className="flex items-center gap-3"><input type="checkbox" checked={advanced[key]} onChange={(e)=>updateAdvanced(key,e.target.checked)} className="h-4 w-4 rounded border-slate-300" /><span className="text-sm font-semibold text-slate-700">{label}</span></span><span className="text-sm text-slate-500">₹{cost.toLocaleString('en-IN')}</span></label>)}</div>
           <div className="grid gap-4 md:grid-cols-2">{advField('uniform_total_cost','Total Uniform Cost',{type:'number',required:true})}{advField('uniform_monthly_emi','Monthly EMI Recovery',{type:'number',required:true})}</div>
@@ -366,8 +428,8 @@ function EmployeeModal({ form, advanced, photo, setPhoto, clients, updateMaster,
         </div>}
 
         <div className="mt-8 flex items-center justify-between border-t border-slate-200 pt-5">
-          <div className="text-xs text-slate-400">Required fields are marked <span className="text-rose-500">*</span>. IFSC verification is mandatory.</div>
-          <div className="flex gap-2"><button type="button" onClick={close} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600">Cancel</button><button disabled={saving} className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Create Employee Master'}</button></div>
+          <div className="text-xs text-slate-400">{createdEmployee ? <>Employee <strong>{createdEmployee.employee_code}</strong> is created. Upload documents and complete verification.</> : <>Required fields are marked <span className="text-rose-500">*</span>. Employee ID is generated by the backend.</>}</div>
+          <div className="flex gap-2"><button type="button" onClick={close} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600">{createdEmployee ? 'Finish' : 'Cancel'}</button>{!createdEmployee && <button disabled={saving} className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Create Employee Master'}</button>}</div>
         </div>
       </form>
     </div>
@@ -398,3 +460,39 @@ function StatusBadge({ value }) { const danger=['BENCH','EXPIRED'].includes(valu
 function SectionTitle({ icon: Icon, title, subtitle }) { return <div className="flex items-start gap-3"><div className="rounded-xl bg-slate-100 p-2.5 text-slate-600"><Icon className="h-5 w-5"/></div><div><h3 className="font-semibold text-slate-900">{title}</h3><p className="mt-1 text-xs text-slate-500">{subtitle}</p></div></div>; }
 function InfoCard({ icon: Icon, title, text }) { return <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><Icon className="h-5 w-5 text-slate-500"/><h3 className="mt-4 font-semibold text-slate-900">{title}</h3><p className="mt-1 text-sm leading-6 text-slate-500">{text}</p></div>; }
 function SelectField({ label, value, onChange, options, labels, required=false }) { return <label className="block"><span className="mb-1.5 block text-xs font-semibold text-slate-600">{label}{required&&<span className="text-rose-500"> *</span>}</span><select value={value} required={required} onChange={(e)=>onChange(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-400">{options.map((x,i)=><option key={x || 'empty'} value={x}>{labels ? labels[i] : (x || 'Select')}</option>)}</select></label>; }
+
+
+function DocumentUploader({ employee, documents, busy, uploadDocument, openDocument }) {
+  if (!employee) {
+    return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800"><strong>Save the employee first.</strong> Documents are attached to the permanent employee ID after creation.</div>;
+  }
+  const byType = Object.fromEntries(documents.map((d) => [d.document_type, d]));
+  return <div className="space-y-5">
+    <SectionTitle icon={FileUp} title="Employee Documents" subtitle="Private storage + file integrity screening. Uploaded documents remain pending HR verification until reviewed." />
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><div className="text-xs uppercase tracking-wider text-slate-500">Employee ID</div><div className="mt-1 text-lg font-semibold text-slate-950">{employee.employee_code}</div><div className="text-xs text-slate-500">{employee.name}</div></div>
+        <div className="rounded-xl bg-white px-4 py-3 text-xs text-slate-600 shadow-sm"><ShieldCheck className="mr-1 inline h-4 w-4 text-emerald-600" /> Integrity check runs on every upload</div>
+      </div>
+    </div>
+    <div className="grid gap-3 md:grid-cols-2">
+      {DOCUMENT_TYPES.map(([type, label, required]) => {
+        const doc = byType[type];
+        return <div key={type} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div><div className="font-semibold text-slate-900">{label}{required && <span className="ml-1 text-rose-500">*</span>}</div><div className="mt-1 text-xs text-slate-500">{doc ? `${doc.original_filename} · ${doc.verification_status}` : 'Not uploaded'}</div></div>
+            {doc ? <button type="button" onClick={() => openDocument(doc.id)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700"><Eye className="h-3.5 w-3.5" /> View</button> : <ShieldAlert className="h-4 w-4 text-amber-500" />}
+          </div>
+          <label className="mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-100">
+            <Upload className="h-4 w-4" /> {doc ? 'Replace / add version' : 'Upload document'}
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" className="hidden" disabled={busy} onChange={(e) => { const file=e.target.files?.[0]; if(file) uploadDocument(file,type); e.target.value=''; }} />
+          </label>
+          {doc && <div className="mt-3 flex items-center justify-between text-[11px]"><span className="text-emerald-600 font-semibold">Integrity: PASSED</span><span className="text-amber-600 font-semibold">Review: {doc.verification_status}</span></div>}
+        </div>;
+      })}
+    </div>
+    <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
+      <strong>Authenticity rule:</strong> the system can verify file integrity, file type, duplicate hash and metadata. It does <strong>not</strong> claim a government document is genuine solely from the uploaded image/PDF; HR verification remains a separate approval step.
+    </div>
+  </div>;
+}
