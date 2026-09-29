@@ -356,6 +356,8 @@ export default function Employees() {
         updateMaster={updateMaster} updateAdvanced={updateAdvanced}
         ifscState={ifscState} validateIfsc={validateIfsc}
         saving={saving} save={save} close={() => setOpen(false)}
+        createdEmployee={createdEmployee} documents={documents} documentBusy={documentBusy}
+        uploadDocument={uploadDocument} openDocument={openDocument}
       />}
     </MainLayout>
   );
