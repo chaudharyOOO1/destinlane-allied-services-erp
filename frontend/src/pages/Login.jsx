@@ -4,7 +4,7 @@ import { useAuth } from '../context/useAuth';
 import { Eye, EyeOff, Loader2, LockKeyhole, UserRound } from 'lucide-react';
 
 export default function Login() {
-  const [employeeId, setEmployeeId] = useState('');
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -20,7 +20,7 @@ export default function Login() {
     event.preventDefault();
     setError('');
 
-    const result = await login(employeeId.trim(), password);
+    const result = await login(loginId.trim(), password);
 
     if (result.success) {
       navigate('/dashboard', { replace: true });
@@ -62,7 +62,7 @@ export default function Login() {
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label
-                  htmlFor="employee-id"
+                  htmlFor="login-id"
                   className="mb-2 block text-sm font-semibold text-slate-700"
                 >
                   Login ID
@@ -70,15 +70,15 @@ export default function Login() {
                 <div className="relative">
                   <UserRound className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
-                    id="employee-id"
+                    id="login-id"
                     type="text"
                     autoComplete="username"
                     autoFocus
                     required
-                    value={employeeId}
-                    onChange={(event) => setEmployeeId(event.target.value)}
+                    value={loginId}
+                    onChange={(event) => setLoginId(event.target.value)}
                     className="h-12 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-700 focus:ring-4 focus:ring-slate-700/10"
-                    placeholder="Enter your EMP ID"
+                    placeholder="Enter your Login ID (email or phone)"
                   />
                 </div>
               </div>
