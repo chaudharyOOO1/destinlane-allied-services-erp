@@ -199,10 +199,18 @@ def submit_joining(employee_id: UUID, db: Session = Depends(get_db), current_use
         raise HTTPException(422, "Upload required documents before submission: " + ", ".join(missing_docs))
     category = db.execute(text("""
         select * from public.employee_approval_categories
-        where category_key='EMPLOYEE_JOINING' and is_active=true
+        where task_type='EMPLOYEE_JOINING' and is_active=true and approver_user_id is not null
+        order by sequence_order asc, id asc limit 1
     """)).mappings().first()
-    if not category or not category["approver_user_id"]:
-        raise HTTPException(409, "No approver is assigned for Employee Joining. Set the approver in Approver Setup first.")
+    final_category = db.execute(text("""
+        select 1 from public.employee_approval_categories
+        where task_type='EMPLOYEE_JOINING' and is_active=true
+          and is_final_approver=true and approver_user_id is not null
+    """)).first()
+    if not category:
+        raise HTTPException(409, "No approver is assigned for Employee Joining. Set an approver in Approver Setup first.")
+    if not final_category:
+        raise HTTPException(409, "A final approver must be assigned in Approver Setup before an employee can be submitted.")
     if db.execute(text("select 1 from public.employee_approval_requests where employee_id=:id and status='PENDING'"), {"id": str(employee_id)}).first():
         raise HTTPException(409, "This employee is already pending approval.")
     req = db.execute(text("""
@@ -248,17 +256,52 @@ def decide_approval(approval_id: UUID, payload: dict, db: Session = Depends(get_
     if decision not in {"APPROVE","REJECT"}:
         raise HTTPException(422, "Decision must be APPROVE or REJECT.")
     remarks = (payload.get("remarks") or "").strip() or None
-    new_employee_status = "ACTIVE" if decision == "APPROVE" else "REJECTED"
-    new_draft_status = "APPROVED" if decision == "APPROVE" else "REJECTED"
+    category = db.execute(text("select * from public.employee_approval_categories where id=:id"), {"id": request["category_id"]}).mappings().first()
+    if decision == "REJECT":
+        db.execute(text("""
+            update public.employee_approval_requests
+            set status='REJECT', remarks=:remarks, decided_by=:decided_by, decided_at=now()
+            where id=:id
+        """), {"remarks": remarks, "decided_by": current_user.id, "id": str(approval_id)})
+        db.execute(text("update public.employees set status='REJECTED' where id=:id"), {"id": str(request["employee_id"])})
+        db.execute(text("update public.employee_joining_drafts set status='REJECTED',updated_at=now() where employee_id=:id"), {"id": str(request["employee_id"])})
+        db.commit()
+        return {"status":"REJECT","employee_id":str(request["employee_id"]),"remarks":remarks}
+
     db.execute(text("""
         update public.employee_approval_requests
-        set status=:status, remarks=:remarks, decided_by=:decided_by, decided_at=now()
+        set status='APPROVED', remarks=:remarks, decided_by=:decided_by, decided_at=now()
         where id=:id
-    """), {"status": decision, "remarks": remarks, "decided_by": current_user.id, "id": str(approval_id)})
-    db.execute(text("update public.employees set status=:status where id=:id"), {"status": new_employee_status, "id": str(request["employee_id"])})
-    db.execute(text("update public.employee_joining_drafts set status=:status,updated_at=now() where employee_id=:id"), {"status": new_draft_status, "id": str(request["employee_id"])})
+    """), {"remarks": remarks, "decided_by": current_user.id, "id": str(approval_id)})
+
+    if category and category["is_final_approver"]:
+        db.execute(text("update public.employees set status='ACTIVE' where id=:id"), {"id": str(request["employee_id"])})
+        db.execute(text("update public.employee_joining_drafts set status='APPROVED',updated_at=now() where employee_id=:id"), {"id": str(request["employee_id"])})
+        db.execute(text("update public.employee_intimations set status='APPROVED',updated_at=now() where id=(select intimation_id from public.employee_joining_drafts where employee_id=:id)"), {"id": str(request["employee_id"])})
+        db.commit()
+        return {"status":"APPROVED","employee_id":str(request["employee_id"]),"remarks":remarks,"final":True}
+
+    next_category = db.execute(text("""
+        select * from public.employee_approval_categories
+        where task_type='EMPLOYEE_JOINING' and is_active=true
+          and approver_user_id is not null
+          and sequence_order > :current_order
+        order by sequence_order asc, id asc limit 1
+    """), {"current_order": category["sequence_order"] if category else 0}).mappings().first()
+    if not next_category:
+        db.rollback()
+        raise HTTPException(409, "This approval is not marked final and no next approver is configured.")
+
+    db.execute(text("""
+        insert into public.employee_approval_requests
+          (employee_id,category_id,assigned_to,submitted_by,status,submitted_at)
+        values (:employee_id,:category_id,:assigned_to,:submitted_by,'PENDING',now())
+    """), {
+        "employee_id":str(request["employee_id"]), "category_id":next_category["id"],
+        "assigned_to":next_category["approver_user_id"], "submitted_by":current_user.id
+    })
     db.commit()
-    return {"status": decision, "employee_id": str(request["employee_id"]), "remarks": remarks}
+    return {"status":"APPROVED","employee_id":str(request["employee_id"]),"remarks":remarks,"next_approver":next_category["approver_user_id"],"final":False}eturn {"status": decision, "employee_id": str(request["employee_id"]), "remarks": remarks}
 
 @router.get("/approval-categories")
 def list_approval_categories(db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
