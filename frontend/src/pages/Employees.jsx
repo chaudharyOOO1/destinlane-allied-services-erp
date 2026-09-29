@@ -74,7 +74,10 @@ export default function Employees() {
   const [advanced, setAdvanced] = useState(EMPTY_ADVANCED);
   const [saving, setSaving] = useState(false);
   const [photo, setPhoto] = useState('');
-  const [ifscState, setIfscState] = useState({ state: 'idle', message: '' });\n  const [createdEmployee, setCreatedEmployee] = useState(null);\n  const [documents, setDocuments] = useState([]);\n  const [documentBusy, setDocumentBusy] = useState(false);
+  const [ifscState, setIfscState] = useState({ state: 'idle', message: '' });
+  const [createdEmployee, setCreatedEmployee] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [documentBusy, setDocumentBusy] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -364,7 +367,12 @@ export default function Employees() {
 }
 
 function EmployeeModal({ form, advanced, photo, setPhoto, clients, updateMaster, updateAdvanced, ifscState, validateIfsc, saving, save, close, createdEmployee, documents, documentBusy, uploadDocument, openDocument }) {
-  const [section, setSection] = useState('identity');\n  useEffect(() => {\n    const handler = () => setSection('documents');\n    window.addEventListener('destinlane-employee-documents', handler);\n    return () => window.removeEventListener('destinlane-employee-documents', handler);\n  }, []);
+  const [section, setSection] = useState('identity');
+  useEffect(() => {
+    const handler = () => setSection('documents');
+    window.addEventListener('destinlane-employee-documents', handler);
+    return () => window.removeEventListener('destinlane-employee-documents', handler);
+  }, []);
   const uniformItems = [['uniform_shirt', 'Shirt', 450], ['uniform_trousers', 'Trousers', 650], ['uniform_shoes', 'Shoes', 900], ['uniform_belt', 'Belt', 150], ['uniform_cap', 'Cap', 120]];
   const uniformCost = uniformItems.reduce((sum, [key, , cost]) => sum + (advanced[key] ? cost : 0), 0);
 
@@ -432,7 +440,9 @@ function EmployeeModal({ form, advanced, photo, setPhoto, clients, updateMaster,
           {form.category === 'GUNMAN' ? <div className="grid gap-4 md:grid-cols-2">{advField('gun_license_no','Gun License Number',{required:true})}{advField('arms_issuing_authority','Issuing Authority',{required:true})}{advField('gun_license_expiry','Expiry Date',{type:'date',required:true})}{advField('arms_caliber','Caliber',{required:true})}{advField('weapon_serial_no','Weapon Serial Number',{required:true})}{advField('ammunition_count','Ammunition Count',{type:'number',required:true})}</div> : <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">Arms fields are not applicable to the selected category. Select <strong>GUNMAN</strong> if an arms record is required.</div>}
         </div>}
 
-        {section === 'documents' && <DocumentUploader employee={createdEmployee} documents={documents} busy={documentBusy} uploadDocument={uploadDocument} openDocument={openDocument} />}\n\n        {section === 'uniform' && <div className="space-y-6">
+        {section === 'documents' && <DocumentUploader employee={createdEmployee} documents={documents} busy={documentBusy} uploadDocument={uploadDocument} openDocument={openDocument} />}
+
+        {section === 'uniform' && <div className="space-y-6">
           <SectionTitle icon={WalletCards} title="Dress / Uniform EMI Calculator" subtitle="Select issued items to calculate the recovery amount." />
           <div className="grid gap-3 md:grid-cols-2">{uniformItems.map(([key,label,cost]) => <label key={key} className="flex items-center justify-between rounded-xl border border-slate-200 p-4"><span className="flex items-center gap-3"><input type="checkbox" checked={advanced[key]} onChange={(e)=>updateAdvanced(key,e.target.checked)} className="h-4 w-4 rounded border-slate-300" /><span className="text-sm font-semibold text-slate-700">{label}</span></span><span className="text-sm text-slate-500">₹{cost.toLocaleString('en-IN')}</span></label>)}</div>
           <div className="grid gap-4 md:grid-cols-2">{advField('uniform_total_cost','Total Uniform Cost',{type:'number',required:true})}{advField('uniform_monthly_emi','Monthly EMI Recovery',{type:'number',required:true})}</div>
