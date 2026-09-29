@@ -2,7 +2,6 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from app.crud.base import CRUDBase
 from app.models.user import User
-from app.models.employee import Employee
 from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash, verify_password
 
@@ -35,10 +34,6 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         user = self.get_by_email(db, email=identifier)
         if not user:
             user = db.query(User).filter(User.phone_number == identifier).first()
-        if not user and identifier.upper().startswith("E-DAS-"):
-            employee = db.query(Employee).filter(Employee.employee_code == identifier.upper()).first()
-            if employee and employee.phone:
-                user = db.query(User).filter(User.phone_number == employee.phone).first()
         if not user or not verify_password(password, user.hashed_password):
             return None
         return user
