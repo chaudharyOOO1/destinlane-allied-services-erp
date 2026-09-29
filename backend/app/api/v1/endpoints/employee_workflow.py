@@ -301,7 +301,7 @@ def decide_approval(approval_id: UUID, payload: dict, db: Session = Depends(get_
         "assigned_to":next_category["approver_user_id"], "submitted_by":current_user.id
     })
     db.commit()
-    return {"status":"APPROVED","employee_id":str(request["employee_id"]),"remarks":remarks,"next_approver":next_category["approver_user_id"],"final":False}eturn {"status": decision, "employee_id": str(request["employee_id"]), "remarks": remarks}
+    return {"status":"APPROVED","employee_id":str(request["employee_id"]),"remarks":remarks,"next_approver":next_category["approver_user_id"],"final":False}
 
 @router.get("/approval-categories")
 def list_approval_categories(db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
