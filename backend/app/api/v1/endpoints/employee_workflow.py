@@ -220,7 +220,7 @@ def submit_joining(employee_id: UUID, db: Session = Depends(get_db), current_use
     return dict(req)
 
 @router.get("/approvals")
-def list_approvals(db: Session = Depends(get_db), current_user: User = Depends(require_hr_or_admin)):
+def list_approvals(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     rows = db.execute(text("""
         select ar.*, e.employee_code, e.name, e.phone, e.designation, e.category,
                c.category_name, u.full_name as assigned_to_name
