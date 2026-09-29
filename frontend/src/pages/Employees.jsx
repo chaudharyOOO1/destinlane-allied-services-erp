@@ -309,7 +309,9 @@ export default function Employees() {
 
         {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
 
-        {subtab === 'onboarding' && <EmployeeOnboardingWorkflow />}\n\n        {subtab === 'master' && (
+        {subtab === 'onboarding' && <EmployeeOnboardingWorkflow />}
+
+        {subtab === 'master' && (
           <section className="space-y-4">
             <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row">
               <div className="relative flex-1">
