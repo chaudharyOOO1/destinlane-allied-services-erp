@@ -162,23 +162,26 @@ export default function Employees() {
       return;
     }
 
-    const ifscOk = await validateIfsc();
-    if (!ifscOk) {
-      setSaving(false);
-      setSubtab('master');
-      return;
+    const bankRequired = Boolean(advanced.bank_account_no || advanced.bank_name || advanced.bank_branch || advanced.bank_ifsc);
+    if (bankRequired) {
+      const ifscOk = await validateIfsc();
+      if (!ifscOk) {
+        setSaving(false);
+        return;
+      }
     }
 
     try {
-      await api.post('/erp/employees', {
+      const created = await api.post('/erp/employees', {
         ...form,
         ...advanced,
+        employee_code: undefined,
         intimation_id: form.intimation_id || undefined,
         dob: form.dob || undefined,
         gender: form.gender || undefined,
         designation: form.designation || undefined,
         client_id: form.client_id ? Number(form.client_id) : undefined,
-        site_id: form.site_id || undefined,
+        site_id: form.site_id ? Number(form.site_id) : undefined,
         joining_date: form.joining_date || undefined,
         category: form.category || undefined,
         aadhaar_no: aadhaar || undefined,
@@ -188,12 +191,17 @@ export default function Employees() {
         emergency_contact: form.emergency_contact || undefined,
         marital_status: form.marital_status || undefined,
         bank_ifsc: advanced.bank_ifsc?.trim().toUpperCase() || undefined,
+        ifsc_verified: !bankRequired || ifscState.state === 'valid',
       });
-      setOpen(false);
+
+      setCreatedEmployee(created.data);
+      setDocuments([]);
+      await loadDocuments(created.data.id);
       setForm(EMPTY_MASTER);
       setAdvanced(EMPTY_ADVANCED);
       setPhoto('');
       setIfscState({ state: 'idle', message: '' });
+      setSectionForDocuments();
       await load();
     } catch (e) {
       setError(e.response?.data?.detail || 'Unable to create employee.');
@@ -254,6 +262,8 @@ export default function Employees() {
     setAdvanced(EMPTY_ADVANCED);
     setPhoto('');
     setIfscState({ state: 'idle', message: '' });
+    setCreatedEmployee(null);
+    setDocuments([]);
     setOpen(true);
   }
 
