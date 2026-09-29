@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import MainLayout from '../layouts/MainLayout';
+import EmployeeOnboardingWorkflow from '../components/EmployeeOnboardingWorkflow';
 import api from '../api/axios';
 import {
   AlertTriangle, Banknote, BadgeCheck, CalendarDays, Camera, CheckCircle2,
@@ -43,7 +44,8 @@ const DOCUMENT_TYPES = [
 ];
 
 const SUBTABS = [
-  ['master', 'Create Master', UserRound],
+  ['onboarding', 'Onboarding Workflow', UserRound],
+  ['master', 'Employee Master', UserRound],
   ['compliance', 'Compliance & Documents', ShieldCheck],
   ['attendance', 'Reports & Attendance', ClipboardCheck],
   ['payroll', 'Payroll & Salary', WalletCards],
@@ -283,9 +285,7 @@ export default function Employees() {
             <button onClick={load} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
               <RefreshCw className="h-4 w-4" /> Refresh
             </button>
-            <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
-              <Plus className="h-4 w-4" /> Create Employee
-            </button>
+
           </div>
         </header>
 
@@ -309,7 +309,7 @@ export default function Employees() {
 
         {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
 
-        {subtab === 'master' && (
+        {subtab === 'onboarding' && <EmployeeOnboardingWorkflow />}\n\n        {subtab === 'master' && (
           <section className="space-y-4">
             <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row">
               <div className="relative flex-1">
