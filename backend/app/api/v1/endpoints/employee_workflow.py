@@ -133,6 +133,49 @@ def save_joining_draft(employee_id: UUID, payload: dict, db: Session = Depends(g
     if not row:
         db.rollback()
         raise HTTPException(404, "Employee not found.")
+    bank_keys={"bank_account_no","bank_name","bank_branch","bank_ifsc"}
+    bank_present=any(payload.get(k) for k in bank_keys)
+    if bank_present:
+        if not all(payload.get(k) for k in bank_keys):
+            db.rollback()
+            raise HTTPException(422, "Complete all bank fields before saving the bank section.")
+        db.execute(text("""
+            insert into public.employee_bank_accounts
+              (employee_id,account_number,bank_name,branch,ifsc_code,ifsc_verified)
+            values (:id,:account_number,:bank_name,:branch,:ifsc_code,:verified)
+            on conflict (employee_id) do update set
+              account_number=excluded.account_number, bank_name=excluded.bank_name,
+              branch=excluded.branch, ifsc_code=excluded.ifsc_code,
+              ifsc_verified=excluded.ifsc_verified, updated_at=now()
+        """), {
+            "id": str(employee_id), "account_number": payload["bank_account_no"],
+            "bank_name": payload["bank_name"], "branch": payload["bank_branch"],
+            "ifsc_code": str(payload["bank_ifsc"]).strip().upper(),
+            "verified": bool(payload.get("ifsc_verified", False))
+        })
+    if payload.get("nominee_name"):
+        existing_nominee=db.execute(text("select id from public.employee_nominees where employee_id=:id limit 1"), {"id": str(employee_id)}).first()
+        if existing_nominee:
+            db.execute(text("""
+                update public.employee_nominees
+                set nominee_name=:name, relation=:relation, dob=:dob,
+                    aadhaar_no=:aadhaar, allocation_percentage=:percentage
+                where id=:nominee_id
+            """), {
+                "nominee_id": existing_nominee[0], "name": payload.get("nominee_name"),
+                "relation": payload.get("nominee_relation"), "dob": payload.get("nominee_dob"),
+                "aadhaar": payload.get("nominee_aadhaar"), "percentage": payload.get("nominee_percentage") or 100
+            })
+        else:
+            db.execute(text("""
+                insert into public.employee_nominees
+                  (employee_id,nominee_name,relation,dob,aadhaar_no,allocation_percentage)
+                values (:id,:name,:relation,:dob,:aadhaar,:percentage)
+            """), {
+                "id": str(employee_id), "name": payload.get("nominee_name"),
+                "relation": payload.get("nominee_relation"), "dob": payload.get("nominee_dob"),
+                "aadhaar": payload.get("nominee_aadhaar"), "percentage": payload.get("nominee_percentage") or 100
+            })
     db.execute(text("update public.employee_joining_drafts set status='DRAFT', last_saved_at=now(), updated_at=now() where employee_id=:id"), {"id": str(employee_id)})
     db.execute(text("update public.employee_intimations set status='JOINING', updated_at=now() where id=(select intimation_id from public.employee_joining_drafts where employee_id=:id)"), {"id": str(employee_id)})
     db.commit()
