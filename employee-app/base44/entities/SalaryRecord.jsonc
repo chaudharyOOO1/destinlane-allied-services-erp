@@ -1,0 +1,55 @@
+{
+  "name": "SalaryRecord",
+  "type": "object",
+  "properties": {
+    "employee_id": {
+      "type": "string"
+    },
+    "employee_name": {
+      "type": "string"
+    },
+    "month": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "credited",
+        "pending"
+      ],
+      "default": "pending"
+    },
+    "credited_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "work_days": {
+      "type": "number"
+    },
+    "present_days": {
+      "type": "number"
+    },
+    "leave_days": {
+      "type": "number"
+    },
+    "absent_days": {
+      "type": "number"
+    },
+    "late_days": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "employee_id",
+    "month"
+  ],
+  "rls": {
+    "read": true,
+    "create": true,
+    "update": true,
+    "delete": true
+  }
+}

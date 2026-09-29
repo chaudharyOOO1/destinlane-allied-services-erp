@@ -13,7 +13,18 @@
     },
     "backend": {
       "root": "backend/",
-      "entrypoint": "app.main:app"
+      "entrypoint": "app.main:app",
+      "framework": "fastapi"
+    },
+    "employee-app": {
+      "root": "employee-app/",
+      "framework": "vite",
+      "rewrites": [
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
+      ]
     }
   },
   "rewrites": [
@@ -39,6 +50,18 @@
       "source": "/api/(.*)",
       "destination": {
         "service": "backend"
+      }
+    },
+    {
+      "source": "/employee",
+      "destination": {
+        "service": "employee-app"
+      }
+    },
+    {
+      "source": "/employee/(.*)",
+      "destination": {
+        "service": "employee-app"
       }
     },
     {
