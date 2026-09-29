@@ -117,7 +117,7 @@ export default function EmployeeOnboardingWorkflow(){
   {tab==='joining'&&<section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
    <div className="border-b border-slate-200 p-5"><h3 className="font-semibold text-slate-900">Employee Joining Bucket</h3><p className="text-xs text-slate-500 mt-1">Every intimation becomes a joining record here. Use the action tab to complete the detailed employee file.</p></div>
    <Table loading={loading} empty={!joining.length} headers={['Employee ID','Employee','Designation','Category','Documents','Status','Action']}>
-    {joining.map(x=><tr key={x.id} className="border-b border-slate-100 last:border-0"><Cell><b className="font-mono text-xs">{x.employee_code}</b></Cell><Cell>{x.name}</Cell><Cell>{x.designation||'—'}</Cell><Cell>{x.category||'—'}</Cell><Cell>{x.document_count}</Cell><Cell><Badge value={x.joining_status||x.employee_status}/></Cell><Cell><button onClick={()=>openJoining(x)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white">Open / Continue</button></Cell></tr>)}
+    {joining.map(x=><tr key={x.id} className="border-b border-slate-100 last:border-0"><Cell><b className="font-mono text-xs">{x.employee_code}</b></Cell><Cell>{x.name}</Cell><Cell>{x.designation||'—'}</Cell><Cell>{x.category||'—'}</Cell><Cell>{x.document_count}</Cell><Cell><div><Badge value={x.joining_status||x.employee_status}/>{x.last_approval_remarks&&x.last_approval_status==='REJECT'&&<div className="mt-1 max-w-56 text-[11px] text-rose-600">Rejected: {x.last_approval_remarks}</div>}</div></Cell><Cell><button onClick={()=>openJoining(x)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white">Open / Continue</button></Cell></tr>)}
    </Table>
   </section>}
 
