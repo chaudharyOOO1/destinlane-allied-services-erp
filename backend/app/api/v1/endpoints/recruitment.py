@@ -113,7 +113,8 @@ def onboard_candidate(candidate_id:str,payload:dict|None=None,db:Session=Depends
     bench_reason="; ".join(lock_reasons) if lock_reasons else None
 
     iid=f"INT-{datetime.utcnow():%Y%m%d}-{uuid4().hex[:7].upper()}"
-    code=f"S-DAS-{int(db.execute(text("select nextval('staff_code_seq')")).scalar()):04d}"
+    staff_seq=db.execute(text("select nextval('staff_code_seq')")).scalar()
+    code=f"S-DAS-{int(staff_seq):04d}"
     badge=payload.get("badge_number") or f"BDG-{datetime.utcnow():%y%m%d}-{uuid4().hex[:5].upper()}"
     emp=db.execute(text("""insert into employees(employee_code,name,phone,status,intimation_id,designation,category,branch,joining_date,status_reason)
       values(:code,:name,:phone,:employee_status,:iid,:designation,:category,:branch,current_date,:status_reason) returning id"""),
