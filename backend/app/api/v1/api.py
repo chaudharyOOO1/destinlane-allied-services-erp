@@ -1,11 +1,11 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth,users,erp,employees,client_master,site_master,control_center,roster_master,attendance_master,erp_controls,accounts_master,mobile_sync,recruitment,staff,contract_master,payroll,owner
+from app.api.v1.endpoints import auth,users,erp,employees,employee_documents,client_master,site_master,control_center,roster_master,attendance_master,erp_controls,accounts_master,mobile_sync,recruitment,staff,contract_master,payroll,owner
 
 api_router=APIRouter()
 api_router.include_router(auth.router,prefix="/auth",tags=["Authentication"])
 api_router.include_router(users.router,prefix="/users",tags=["Users"])
 api_router.include_router(erp.router,prefix="/erp",tags=["Enterprise ERP"])
-api_router.include_router(employees.router,prefix="/erp/employees",tags=["Employee Master"])
+api_router.include_router(employees.router,prefix="/erp/employees",tags=["Employee Master"])\napi_router.include_router(employee_documents.router,prefix="/erp/employees",tags=["Employee Documents"])
 api_router.include_router(recruitment.router,prefix="/erp/recruitment",tags=["Recruitment Pipeline"])
 api_router.include_router(staff.router,prefix="/erp/staff",tags=["Staff Master"])
 api_router.include_router(client_master.router,prefix="/erp/clients",tags=["Client Master"])
