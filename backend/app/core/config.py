@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = "postgres"
     POSTGRES_DB: str = "security_erp"
     DATABASE_URL: Union[str, None] = None
-    ADMIN_SETUP_TOKEN: Union[str, None] = None
+    ADMIN_SETUP_TOKEN: Union[str, None] = None\n    SUPABASE_URL: Union[str, None] = None\n    SUPABASE_SERVICE_ROLE_KEY: Union[str, None] = None\n    EMPLOYEE_DOCUMENT_BUCKET: str = "employee-documents"
 
     BACKEND_CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:3000",
