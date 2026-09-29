@@ -20,9 +20,9 @@ router = APIRouter()
 
 @router.post("/login", response_model=Token)
 def login_json(login_data: LoginRequest, db: Session = Depends(get_db)) -> Any:
-    user = crud_user.authenticate(db, email=login_data.email, password=login_data.password)
+    user = crud_user.authenticate(db, login_id=login_data.login_id, password=login_data.password)
     if not user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect email or password.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Login ID or password.")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user account.")
     return {
@@ -33,7 +33,7 @@ def login_json(login_data: LoginRequest, db: Session = Depends(get_db)) -> Any:
 
 @router.post("/login/access-token", response_model=Token)
 def login_access_token(db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()) -> Any:
-    user = crud_user.authenticate(db, email=form_data.username, password=form_data.password)
+    user = crud_user.authenticate(db, login_id=form_data.username, password=form_data.password)
     if not user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect email or password.")
     if not user.is_active:
