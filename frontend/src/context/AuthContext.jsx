@@ -42,10 +42,10 @@ export function AuthProvider({ children }) {
 
   const isAuthenticated = !!user && !!token;
 
-  async function login(email, password) {
+  async function login(loginId, password) {
     setLoading(true);
     try {
-      const response = await api.post('/auth/login', { email, password });
+      const response = await api.post('/auth/login', { login_id: loginId, password });
       if (!response.data?.access_token) throw new Error('Invalid authentication response from server');
       const { access_token, user: userData } = response.data;
       localStorage.setItem('access_token', access_token);
@@ -53,7 +53,7 @@ export function AuthProvider({ children }) {
       setToken(access_token); setUser(userData); setApiConnected(true);
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.response?.data?.detail || 'Invalid email or password.' };
+      return { success: false, error: error.response?.data?.detail || 'Invalid Login ID or password.' };
     } finally { setLoading(false); }
   }
 
