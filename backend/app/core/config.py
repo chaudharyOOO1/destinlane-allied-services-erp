@@ -1,18 +1,20 @@
 import json
 from typing import List, Union
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Fortellus Security & Facility Management ERP"
+    PROJECT_NAME: str = "DestinLane Allied Services ERP"
     VERSION: str = "2.0.0"
     API_V1_STR: str = "/api/v1"
-    DEBUG: bool = True
+    DEBUG: bool = False
 
-    SECRET_KEY: str = "your-super-secret-jwt-key-change-this-in-production"
+    # Required in every deployed environment. Never use a hard-coded JWT secret.
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 8
 
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: int = 5432
@@ -20,21 +22,16 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = "postgres"
     POSTGRES_DB: str = "security_erp"
     DATABASE_URL: Union[str, None] = None
+
     ADMIN_SETUP_TOKEN: Union[str, None] = None
     SUPABASE_URL: Union[str, None] = None
     SUPABASE_SERVICE_ROLE_KEY: Union[str, None] = None
+    ALLOW_LOCAL_PASSWORD_FALLBACK: bool = False
     EMPLOYEE_DOCUMENT_BUCKET: str = "employee-documents"
 
     BACKEND_CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:3000",
         "http://localhost:5173",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-        "https://frontend-fortellus.vercel.app",
-        "https://frontend-nu-five-evlm3uvoo2.vercel.app",
-        "https://frontend-git-main-fortellus.vercel.app",
-        "https://frontend-6upexdcp8-fortellus.vercel.app",
-        "https://frontend-ntbly181o-fortellus.vercel.app",
     ]
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
@@ -51,7 +48,7 @@ class Settings(BaseSettings):
                 pass
         if isinstance(v, list):
             return v
-        return ["*"]
+        return []
 
     @property
     def sync_database_url(self) -> str:
