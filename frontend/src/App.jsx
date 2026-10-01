@@ -4,6 +4,7 @@ import { useAuth } from './context/useAuth';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import AdminSetup from './pages/AdminSetup';
+import AdminRecovery from './pages/AdminRecovery';
 import Dashboard from './pages/Dashboard';
 import ERPModules from './pages/ERPModules';
 import Employees from './pages/Employees';
@@ -41,6 +42,7 @@ function App() {
   return <Router><AuthProvider><Routes>
     <Route path="/login" element={<Login />} />
     <Route path="/setup-admin" element={<AdminSetup />} />
+    <Route path="/admin-recovery" element={<AdminRecovery />} />
     <Route path="/erp" element={<Protected permission="dashboard.view"><ERPModules /></Protected>} />
     <Route path="/dashboard" element={<Protected permission="dashboard.view"><Dashboard /></Protected>} />
     <Route path="/employees" element={<Protected permission="employees.view"><Employees /></Protected>} />
