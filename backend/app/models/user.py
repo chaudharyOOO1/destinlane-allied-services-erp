@@ -8,6 +8,7 @@ class User(BaseModel):
     __tablename__ = "users"
 
     email = Column(String(255), unique=True, index=True, nullable=False)
+    login_id = Column(String(255), unique=True, index=True, nullable=True)
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=False)
     phone_number = Column(String(50), nullable=True)
@@ -35,4 +36,4 @@ class User(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<User(id={self.id}, email='{self.email}', role='{self.role}')>"
+        return f"<User(id={self.id}, login_id='{self.login_id}', email='{self.email}', role='{self.role}')>"
