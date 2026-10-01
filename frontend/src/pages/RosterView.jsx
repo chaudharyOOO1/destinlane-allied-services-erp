@@ -9,16 +9,15 @@ import RosterModal from '../modals/RosterModal';
 import { useAuth } from '../context/useAuth';
 import { formatDate } from '../utils/helpers';
 import api from '../api/axios';
-import { INITIAL_ROSTERS, INITIAL_GUARDS, INITIAL_SITES } from '../api/mockData';
 import { Calendar, Plus, Sun, Moon, MapPin, Edit3, CheckCircle2, Shield } from 'lucide-react';
 
 export default function RosterView() {
   const { user } = useAuth();
   const role = user?.role || 'ADMIN';
 
-  const [rosters, setRosters] = useState(INITIAL_ROSTERS);
-  const [guards, setGuards] = useState(INITIAL_GUARDS);
-  const [sites, setSites] = useState(INITIAL_SITES);
+  const [rosters, setRosters] = useState([]);
+  const [guards, setGuards] = useState([]);
+  const [sites, setSites] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [shiftFilter, setShiftFilter] = useState('ALL');
   const [siteFilter, setSiteFilter] = useState('ALL');
