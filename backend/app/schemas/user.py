@@ -1,9 +1,7 @@
 from datetime import datetime
 from typing import Optional
-
 from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from app.models.enums import UserRole
-
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -13,10 +11,8 @@ class UserBase(BaseModel):
     role: UserRole = UserRole.STAFF
     is_active: bool = True
 
-
 class UserCreate(UserBase):
     password: str = Field(min_length=12, max_length=72)
-
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
@@ -26,7 +22,6 @@ class UserUpdate(BaseModel):
     phone_number: Optional[str] = None
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
-
 
 class UserResponse(UserBase):
     id: int
