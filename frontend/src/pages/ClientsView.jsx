@@ -8,16 +8,15 @@ import DetailDrawer from '../components/DetailDrawer';
 import ClientModal from '../modals/ClientModal';
 import { useAuth } from '../context/useAuth';
 import api from '../api/axios';
-import { INITIAL_CLIENTS, INITIAL_SITES, INITIAL_INVOICES } from '../api/mockData';
 import { Users, Plus, Building2, Mail, Phone, MapPin, Edit3, Shield, ShieldAlert } from 'lucide-react';
 
 export default function ClientsView() {
   const { user } = useAuth();
   const role = user?.role || 'ADMIN';
 
-  const [clients, setClients] = useState(INITIAL_CLIENTS);
-  const [sites, setSites] = useState(INITIAL_SITES);
-  const [invoices, setInvoices] = useState(INITIAL_INVOICES);
+  const [clients, setClients] = useState([]);
+  const [sites, setSites] = useState([]);
+  const [invoices, setInvoices] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [viewMode, setViewMode] = useState('grid');
