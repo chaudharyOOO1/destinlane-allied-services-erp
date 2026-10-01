@@ -66,6 +66,26 @@ def setup_admin_password(setup_data: AdminSetupRequest, db: Session = Depends(ge
     db.commit()
     return {"status": "success", "message": "Administrator password initialized. You can now sign in normally."}
 
+class AdminPasswordResetRequest(BaseModel):
+    email: EmailStr
+    new_password: str = Field(min_length=12, max_length=72)
+    setup_token: str = Field(min_length=16, max_length=256)
+
+@router.post("/reset-admin-password")
+def reset_admin_password(data: AdminPasswordResetRequest, db: Session = Depends(get_db)) -> dict:
+    configured_token = settings.ADMIN_SETUP_TOKEN
+    if not configured_token or not secrets.compare_digest(data.setup_token, configured_token):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid administrator recovery token.")
+    admin = db.query(User).filter(User.email == data.email).first()
+    if not admin or not admin.is_active or not admin.is_superuser:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Administrator account not found.")
+    admin.hashed_password = get_password_hash(data.new_password)
+    from sqlalchemy import func
+    admin.password_initialized_at = db.query(func.now()).scalar()
+    db.add(admin)
+    db.commit()
+    return {"status": "success", "message": "Administrator password reset successfully. You can now sign in."}
+
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=72)
     new_password: str = Field(min_length=12, max_length=72)
