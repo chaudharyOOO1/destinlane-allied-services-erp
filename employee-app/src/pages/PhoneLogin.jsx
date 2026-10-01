@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { base44 } from "@/api/base44Client";
-import { supabase } from "@/api/supabaseClient";
+import { mobileApi } from "@/api/backendClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Phone, Loader2, Fingerprint, ArrowRight } from "lucide-react";
@@ -24,18 +23,10 @@ export default function PhoneLogin() {
     setError("");
     setLoading(true);
     try {
-      const { data: results, error } = await supabase
-  .from("employees")
-  .select("*")
-  .eq("phone", clean);
-      if (results.length > 0 && results[0].status !== "inactive") {
-        setSession(results[0]);
-        navigate("/");
-      } else if (results.length > 0 && results[0].status === "inactive") {
-        setError("Your account is inactive. Contact HR.");
-      } else {
-        setError("Phone number not registered with ERP");
-      }
+      const result = await mobileApi.login(clean);
+      localStorage.setItem("emp_access_token", result.access_token);
+      setSession(result.employee);
+      navigate("/");
     } catch (err) {
       setError(err.message || "Login failed. Please try again.");
     } finally {
@@ -56,7 +47,7 @@ export default function PhoneLogin() {
             <Fingerprint className="h-7 w-7" />
           </div>
           <h1 className="font-heading text-2xl font-semibold text-slate-900">
-            Fortellus Allied Services
+            DestinLane Allied Services
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             FAS · Employee Attendance — Login with your registered phone number
@@ -110,7 +101,7 @@ export default function PhoneLogin() {
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-400">
-          Fortellus Allied Services Pvt Ltd (FAS)
+          DestinLane Allied Services Pvt Ltd
         </p>
         <p className="mt-2 text-center text-[11px] font-medium text-slate-400">
           Powered by Fortelus Allied Services © 2026
