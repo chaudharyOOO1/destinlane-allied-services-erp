@@ -18,6 +18,6 @@ api_router.include_router(roster_master.router,prefix="/erp/rosters",tags=["Rost
 api_router.include_router(attendance_master.router,prefix="/erp/attendance",tags=["Attendance Master"])
 api_router.include_router(erp_controls.router,prefix="/erp",tags=["ERP Compliance & Controls"])
 api_router.include_router(accounts_master.router,prefix="/erp",tags=["ERP Accounts Workflows"])
-api_router.include_router(mobile_sync.router,prefix="/erp",tags=["Mobile ERP Sync"])
+api_router.include_router(mobile_sync.router,prefix="/mobile",tags=["Mobile ERP Sync"])
 api_router.include_router(payroll.router,prefix="/erp",tags=["Payroll & Billing Automation"])
 api_router.include_router(owner.router,prefix="/owner",tags=["Owner Executive Command Center"])
