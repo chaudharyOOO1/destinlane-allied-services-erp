@@ -20,13 +20,24 @@ from app.schemas.user import UserResponse
 router = APIRouter()
 
 def _authenticate(db: Session, login_id: str, password: str) -> User | None:
-    auth_result = verify_supabase_password(identifier=login_id, password=password)
+    identifier = login_id.strip()
+    user = crud_user.get_by_login_id(db, login_id=identifier)
+    if not user:
+        user = crud_user.get_by_email(db, email=identifier)
+    if not user:
+        user = db.query(User).filter(User.phone_number == identifier).first()
+    if not user:
+        return None
+
+    # Supabase Auth is the primary password authority when configured.
+    auth_result = verify_supabase_password(identifier=user.email, password=password)
     if auth_result:
-        identifier = login_id.strip()
-        if "@" in identifier:
-            return crud_user.get_by_email(db, email=identifier)
-        return db.query(User).filter(User.phone_number == identifier).first()
-    return crud_user.authenticate(db, login_id=login_id, password=password)
+        return user
+
+    # Local hash remains as a migration fallback.
+    if verify_password(password, user.hashed_password):
+        return user
+    return None
 
 
 @router.post("/login", response_model=Token)
