@@ -133,6 +133,9 @@ export default function Login() {
                 )}
               </button>
             </form>
+            <div className="mt-4 text-right">
+              <a href="/forgot-password" className="text-sm font-medium text-slate-600 hover:text-slate-900">Forgot password?</a>
+            </div>
           </div>
 
           <p className="mt-6 text-center text-[11px] text-slate-400">
