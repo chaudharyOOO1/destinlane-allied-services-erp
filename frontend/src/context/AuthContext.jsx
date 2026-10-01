@@ -46,7 +46,7 @@ export function AuthProvider({ children }) {
     let isMounted = true;
     const base = api.defaults.baseURL || '';
     const healthUrl = base.includes('/api/v1')
-      ? base.replace(//api/v1/?$/, '/health')
+      ? base.replace(/\/api\/v1\/?$/, '/health')
       : (base ? base + '/health' : '/health');
 
     axios.get(healthUrl, { timeout: 3000 })
