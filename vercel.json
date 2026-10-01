@@ -11,8 +11,8 @@
     },
     "backend": {
       "root": "backend/",
-      "entrypoint": "app.main:app",
-      "framework": "fastapi"
+      "framework": "fastapi",
+      "entrypoint": "app.main:app"
     },
     "employee-app": {
       "root": "employee-app/",
@@ -24,9 +24,7 @@
     }
   },
   "rewrites": [
-    { "source": "/health", "destination": { "service": "backend" } },
-    { "source": "/docs", "destination": { "service": "backend" } },
-    { "source": "/openapi.json", "destination": { "service": "backend" } },
+    { "source": "/api", "destination": { "service": "backend" } },
     { "source": "/api/(.*)", "destination": { "service": "backend" } },
     { "source": "/employee", "destination": { "service": "employee-app" } },
     { "source": "/employee/(.*)", "destination": { "service": "employee-app" } },
