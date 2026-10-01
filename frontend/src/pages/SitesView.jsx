@@ -8,16 +8,15 @@ import DetailDrawer from '../components/DetailDrawer';
 import SiteModal from '../modals/SiteModal';
 import { useAuth } from '../context/useAuth';
 import api from '../api/axios';
-import { INITIAL_SITES, INITIAL_CLIENTS, INITIAL_ROSTERS } from '../api/mockData';
 import { MapPin, Plus, Building2, Sun, Moon, ShieldCheck, Edit3, Phone } from 'lucide-react';
 
 export default function SitesView() {
   const { user } = useAuth();
   const role = user?.role || 'ADMIN';
 
-  const [sites, setSites] = useState(INITIAL_SITES);
-  const [clients, setClients] = useState(INITIAL_CLIENTS);
-  const [rosters, setRosters] = useState(INITIAL_ROSTERS);
+  const [sites, setSites] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [rosters, setRosters] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [clientFilter, setClientFilter] = useState('ALL');
   const [viewMode, setViewMode] = useState('grid');
