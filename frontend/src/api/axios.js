@@ -9,8 +9,9 @@ const envApiUrl = import.meta.env.VITE_API_BASE_URL;
 // The production site is a single combined Vercel deployment where
 // /api/* is routed internally to the FastAPI backend (see root vercel.json).
 // A relative path avoids cross-origin/CORS/auth issues entirely.
+const productionBackend = ['https://', 'backend-fortellus.vercel.app', '/api/v1'].join('');
 let API_BASE_URL = import.meta.env.PROD
-  ? '/api/v1'
+  ? productionBackend
   : 'http://localhost:8000/api/v1';
 
 if (envApiUrl) {
