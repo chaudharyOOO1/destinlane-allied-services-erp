@@ -77,8 +77,8 @@ export default function SalaryCard({ employee, salaryRecords }) {
           </div>
 
           <div className="mb-1 text-sm text-slate-500">{monthLabel(selected?.month)}</div>
-          <div className="text-3xl font-semibold tracking-tight text-slate-900">
-            Rs. {Number(selected?.amount || 0).toLocaleString("en-IN")}
+          <div className="rounded-lg bg-slate-50 px-3 py-3 text-sm font-medium text-slate-600">
+            Salary slip is available for this month. The salary amount is shown only on the downloaded slip.
           </div>
 
           <div className="mt-4 flex items-center gap-2">
