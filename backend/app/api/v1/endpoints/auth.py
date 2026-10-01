@@ -11,6 +11,7 @@ from app.api.permissions import effective_permissions
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import create_access_token, get_password_hash, verify_password
+from app.core.supabase_auth import verify_supabase_password
 from app.crud.crud_user import user as crud_user
 from app.models.user import User
 from app.schemas.token import Token, LoginRequest
@@ -18,9 +19,19 @@ from app.schemas.user import UserResponse
 
 router = APIRouter()
 
+def _authenticate(db: Session, login_id: str, password: str) -> User | None:
+    auth_result = verify_supabase_password(identifier=login_id, password=password)
+    if auth_result:
+        identifier = login_id.strip()
+        if "@" in identifier:
+            return crud_user.get_by_email(db, email=identifier)
+        return db.query(User).filter(User.phone_number == identifier).first()
+    return crud_user.authenticate(db, login_id=login_id, password=password)
+
+
 @router.post("/login", response_model=Token)
 def login_json(login_data: LoginRequest, db: Session = Depends(get_db)) -> Any:
-    user = crud_user.authenticate(db, login_id=login_data.login_id, password=login_data.password)
+    user = _authenticate(db, login_id=login_data.login_id, password=login_data.password)
     if not user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Login ID or password.")
     if not user.is_active:
@@ -33,7 +44,7 @@ def login_json(login_data: LoginRequest, db: Session = Depends(get_db)) -> Any:
 
 @router.post("/login/access-token", response_model=Token)
 def login_access_token(db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()) -> Any:
-    user = crud_user.authenticate(db, login_id=form_data.username, password=form_data.password)
+    user = _authenticate(db, login_id=form_data.username, password=form_data.password)
     if not user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect email or password.")
     if not user.is_active:
@@ -65,26 +76,6 @@ def setup_admin_password(setup_data: AdminSetupRequest, db: Session = Depends(ge
     db.add(admin)
     db.commit()
     return {"status": "success", "message": "Administrator password initialized. You can now sign in normally."}
-
-class AdminPasswordResetRequest(BaseModel):
-    email: EmailStr
-    new_password: str = Field(min_length=12, max_length=72)
-    setup_token: str = Field(min_length=16, max_length=256)
-
-@router.post("/reset-admin-password")
-def reset_admin_password(data: AdminPasswordResetRequest, db: Session = Depends(get_db)) -> dict:
-    configured_token = settings.ADMIN_SETUP_TOKEN
-    if not configured_token or not secrets.compare_digest(data.setup_token, configured_token):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid administrator recovery token.")
-    admin = db.query(User).filter(User.email == data.email).first()
-    if not admin or not admin.is_active or not admin.is_superuser:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Administrator account not found.")
-    admin.hashed_password = get_password_hash(data.new_password)
-    from sqlalchemy import func
-    admin.password_initialized_at = db.query(func.now()).scalar()
-    db.add(admin)
-    db.commit()
-    return {"status": "success", "message": "Administrator password reset successfully. You can now sign in."}
 
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=72)
