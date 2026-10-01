@@ -1,35 +1,42 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.api.v1.api import api_router
 from app.core.config import settings
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="Modular REST API for Security & Facility Management ERP with PostgreSQL, SQLAlchemy 2.0, and Alembic.",
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    description="Unified DestinLane Allied Services ERP API.",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json" if settings.DEBUG else None,
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
 )
 
-# Set all CORS enabled origins. In addition to the explicit list (mainly for
-# localhost), allow any current or future Vercel deployment URL for this
-# team/project via regex, so new preview/production aliases don't require a
-# code change + redeploy every time Vercel generates one.
 if settings.BACKEND_CORS_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.BACKEND_CORS_ORIGINS,
-        allow_origin_regex=r"^https://([a-zA-Z0-9-]+-fortellus\.vercel\.app|fortellus-erp\.vercel\.app)$",
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Accept"],
     )
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(self), geolocation=(self), microphone=()"
+    if not settings.DEBUG:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 
 @app.get("/health", tags=["Health"])
 def health_check():
-    """Health check endpoint to verify service availability."""
     return {
         "status": "healthy",
         "app": settings.PROJECT_NAME,
@@ -37,11 +44,9 @@ def health_check():
     }
 
 
-# Include V1 API Routers
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=settings.DEBUG)
