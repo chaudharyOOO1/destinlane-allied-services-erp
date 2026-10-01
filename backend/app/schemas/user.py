@@ -1,7 +1,15 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, ConfigDict, Field
+
+from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator
 from app.models.enums import UserRole
+
+
+def _validate_password_bytes(value: str) -> str:
+    if len(value.encode("utf-8")) > 72:
+        raise ValueError("Password must be at most 72 UTF-8 bytes.")
+    return value
+
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -11,8 +19,11 @@ class UserBase(BaseModel):
     role: UserRole = UserRole.STAFF
     is_active: bool = True
 
+
 class UserCreate(UserBase):
     password: str = Field(min_length=12, max_length=72)
+    _password_bytes = field_validator("password")(_validate_password_bytes)
+
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
@@ -22,6 +33,8 @@ class UserUpdate(BaseModel):
     phone_number: Optional[str] = None
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
+    _password_bytes = field_validator("password")(_validate_password_bytes)
+
 
 class UserResponse(UserBase):
     id: int
