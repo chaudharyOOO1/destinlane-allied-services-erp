@@ -1,26 +1,32 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Union, Optional
+
 import bcrypt
 from jose import jwt
+
 from app.core.config import settings
 
 
+def _password_bytes(password: str) -> bytes:
+    encoded = password.encode("utf-8")
+    if len(encoded) > 72:
+        raise ValueError("Password must be at most 72 UTF-8 bytes.")
+    return encoded
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain password against its bcrypt hash."""
     try:
         return bcrypt.checkpw(
-            plain_password.encode("utf-8")[:72],
+            _password_bytes(plain_password),
             hashed_password.encode("utf-8"),
         )
-    except Exception:
+    except (ValueError, TypeError, bcrypt.Error):
         return False
 
 
 def get_password_hash(password: str) -> str:
-    """Generate a bcrypt hash of a password."""
-    pwd_bytes = password.encode("utf-8")[:72]
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
+    pwd_bytes = _password_bytes(password)
+    return bcrypt.hashpw(pwd_bytes, bcrypt.gensalt()).decode("utf-8")
 
 
 def create_access_token(
@@ -28,17 +34,12 @@ def create_access_token(
     expires_delta: Optional[timedelta] = None,
     role: Optional[Union[str, Any]] = None,
 ) -> str:
-    """Create a signed JWT access token with expiration."""
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
-    to_encode = {"exp": expire, "sub": str(subject)}
-    if role is not None:
-        to_encode["role"] = getattr(role, "value", role)
-    encoded_jwt = jwt.encode(
-        to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+    expire = datetime.now(timezone.utc) + (
+        expires_delta
+        if expires_delta
+        else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    return encoded_jwt
+    payload = {"exp": expire, "sub": str(subject)}
+    if role is not None:
+        payload["role"] = getattr(role, "value", role)
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
