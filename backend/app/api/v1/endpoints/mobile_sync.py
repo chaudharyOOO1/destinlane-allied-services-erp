@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import re
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel, Field
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.geofence import validate_geofence
+from app.core.geofence import validate_geofence\nfrom app.core.supabase_auth import upload_supabase_storage, create_supabase_signed_url
 
 router = APIRouter()
 mobile_oauth = OAuth2PasswordBearer(tokenUrl="/api/v1/mobile/login")
@@ -132,7 +132,7 @@ def mobile_attendance(employee=Depends(get_mobile_employee), db: Session = Depen
         ),
         {"employee_id": str(employee["id"])},
     ).mappings().all()
-    return [dict(row) for row in rows]
+    result = []\n    for row in rows:\n        item = dict(row)\n        for field in ("check_in_selfie_url", "check_out_selfie_url"):\n            value = item.get(field)\n            if value and not str(value).startswith("http"):\n                item[field] = create_supabase_signed_url(bucket="employee-selfies", path=str(value))\n        result.append(item)\n    return result
 
 
 @router.get("/mobile/me/salary")
@@ -220,7 +220,7 @@ def mobile_punch(
             ),
             {
                 "roster_id": roster["id"], "employee_id": str(employee["id"]), "now": now,
-                "selfie": payload.check_in_selfie_url, "lat": payload.latitude,
+                "selfie": payload.check_in_selfie_path, "lat": payload.latitude,
                 "lng": payload.longitude, "accuracy": payload.accuracy,
                 "distance": distance, "device_hash": device_hash,
             },
@@ -257,7 +257,7 @@ def mobile_punch(
             """
         ),
         {
-            "now": now, "selfie": payload.check_out_selfie_url,
+            "now": now, "selfie": payload.check_out_selfie_path,
             "lat": payload.latitude, "lng": payload.longitude,
             "accuracy": payload.accuracy, "distance": distance,
             "ot": round(overtime_hours,2), "regular_hours": round(regular_hours,2),
