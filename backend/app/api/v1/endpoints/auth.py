@@ -11,7 +11,7 @@ from app.api.permissions import effective_permissions
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import create_access_token, get_password_hash, verify_password
-from app.core.supabase_auth import verify_supabase_password
+from app.core.supabase_auth import provision_supabase_password_user, verify_supabase_password
 from app.crud.crud_user import user as crud_user
 from app.models.user import User
 from app.schemas.token import Token, LoginRequest
@@ -68,6 +68,7 @@ def login_access_token(db: Session = Depends(get_db), form_data: OAuth2PasswordR
 
 class AdminSetupRequest(BaseModel):
     email: EmailStr
+    login_id: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=12, max_length=72)
     setup_token: str = Field(min_length=16, max_length=256)
 
@@ -79,14 +80,21 @@ def setup_admin_password(setup_data: AdminSetupRequest, db: Session = Depends(ge
     admin = db.query(User).filter(User.email == setup_data.email).first()
     if not admin or not admin.is_active or not admin.is_superuser:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Administrator account not found.")
-    if getattr(admin, "password_initialized_at", None) is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Administrator password has already been initialized.")
+
+    auth_user = provision_supabase_password_user(email=admin.email, password=setup_data.password)
+    if not auth_user:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Supabase Auth administrator provisioning failed.",
+        )
+
     from sqlalchemy import func
+    admin.login_id = setup_data.login_id.strip()
     admin.hashed_password = get_password_hash(setup_data.password)
     admin.password_initialized_at = db.query(func.now()).scalar()
     db.add(admin)
     db.commit()
-    return {"status": "success", "message": "Administrator password initialized. You can now sign in normally."}
+    return {"status": "success", "message": "Administrator Login ID and password are now synchronized with Supabase Auth."}
 
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=72)
