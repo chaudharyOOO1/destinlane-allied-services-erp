@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta, timezone
+import hashlib
 import re
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel, Field
@@ -11,7 +12,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.geofence import validate_geofence\nfrom app.core.supabase_auth import upload_supabase_storage, create_supabase_signed_url
+from app.core.geofence import validate_geofence
+from app.core.supabase_auth import create_supabase_signed_url, upload_supabase_storage
 
 router = APIRouter()
 mobile_oauth = OAuth2PasswordBearer(tokenUrl="/api/v1/mobile/login")
@@ -26,8 +28,8 @@ class MobilePunchRequest(BaseModel):
     longitude: float = Field(ge=-180, le=180)
     accuracy: float | None = Field(default=None, ge=0, le=10000)
     device_id: str = Field(min_length=8, max_length=255)
-    check_in_selfie_url: str | None = None
-    check_out_selfie_url: str | None = None
+    check_in_selfie_path: str | None = None
+    check_out_selfie_path: str | None = None
 
 
 def _clean_phone(value: str) -> str:
@@ -54,10 +56,7 @@ def _mobile_employee_id(token: str) -> str:
         raise HTTPException(401, "Mobile session is invalid or expired.")
 
 
-def get_mobile_employee(
-    token: str = Depends(mobile_oauth),
-    db: Session = Depends(get_db),
-):
+def get_mobile_employee(token: str = Depends(mobile_oauth), db: Session = Depends(get_db)):
     employee_id = _mobile_employee_id(token)
     row = db.execute(
         text(
@@ -111,6 +110,37 @@ def mobile_login(payload: MobileLoginRequest, db: Session = Depends(get_db)):
     }
 
 
+@router.post("/mobile/selfie")
+async def mobile_selfie(
+    employee=Depends(get_mobile_employee),
+    file: UploadFile = File(...),
+    kind: str = "check-in",
+):
+    if kind not in {"check-in", "check-out"}:
+        raise HTTPException(422, "Invalid selfie type.")
+    if file.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise HTTPException(415, "Selfie must be a JPEG, PNG, or WebP image.")
+
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(413, "Selfie image is too large. Maximum size is 5 MB.")
+
+    path = f"{employee['id']}/{datetime.now(timezone.utc).date().isoformat()}/{kind}-{uuid.uuid4().hex}.jpg"
+    stored = upload_supabase_storage(
+        bucket="employee-selfies",
+        path=path,
+        data=data,
+        content_type=file.content_type,
+    )
+    if not stored:
+        raise HTTPException(502, "Could not store the selfie securely.")
+
+    return {
+        "path": stored,
+        "url": create_supabase_signed_url(bucket="employee-selfies", path=stored),
+    }
+
+
 @router.get("/mobile/me")
 def mobile_me(employee=Depends(get_mobile_employee)):
     return dict(employee)
@@ -132,7 +162,16 @@ def mobile_attendance(employee=Depends(get_mobile_employee), db: Session = Depen
         ),
         {"employee_id": str(employee["id"])},
     ).mappings().all()
-    result = []\n    for row in rows:\n        item = dict(row)\n        for field in ("check_in_selfie_url", "check_out_selfie_url"):\n            value = item.get(field)\n            if value and not str(value).startswith("http"):\n                item[field] = create_supabase_signed_url(bucket="employee-selfies", path=str(value))\n        result.append(item)\n    return result
+
+    result = []
+    for row in rows:
+        item = dict(row)
+        for field in ("check_in_selfie_url", "check_out_selfie_url"):
+            value = item.get(field)
+            if value and not str(value).startswith("http"):
+                item[field] = create_supabase_signed_url(bucket="employee-selfies", path=str(value))
+        result.append(item)
+    return result
 
 
 @router.get("/mobile/me/salary")
@@ -190,11 +229,17 @@ def mobile_punch(
         float(roster["radius_m"] or 100),
     )
     if not within:
-        raise HTTPException(400, f"OUT_OF_GEOFENCE: {round(distance)}m from site; allowed radius is {roster['radius_m']}m")
+        raise HTTPException(
+            400,
+            f"OUT_OF_GEOFENCE: {round(distance)}m from site; allowed radius is {roster['radius_m']}m",
+        )
 
-    device_hash = __import__("hashlib").sha256(payload.device_id.encode("utf-8")).hexdigest()
+    device_hash = hashlib.sha256(payload.device_id.encode("utf-8")).hexdigest()
     existing = db.execute(
-        text("select * from attendance where employee_id=cast(:employee_id as uuid) and attendance_date=current_date limit 1"),
+        text(
+            "select * from attendance "
+            "where employee_id=cast(:employee_id as uuid) and attendance_date=current_date limit 1"
+        ),
         {"employee_id": str(employee["id"])},
     ).mappings().first()
 
@@ -202,6 +247,7 @@ def mobile_punch(
         raise HTTPException(409, "This attendance is bound to another device.")
 
     now = datetime.now(timezone.utc)
+
     if not existing:
         row = db.execute(
             text(
@@ -219,10 +265,15 @@ def mobile_punch(
                 """
             ),
             {
-                "roster_id": roster["id"], "employee_id": str(employee["id"]), "now": now,
-                "selfie": payload.check_in_selfie_path, "lat": payload.latitude,
-                "lng": payload.longitude, "accuracy": payload.accuracy,
-                "distance": distance, "device_hash": device_hash,
+                "roster_id": roster["id"],
+                "employee_id": str(employee["id"]),
+                "now": now,
+                "selfie": payload.check_in_selfie_path,
+                "lat": payload.latitude,
+                "lng": payload.longitude,
+                "accuracy": payload.accuracy,
+                "distance": distance,
+                "device_hash": device_hash,
             },
         ).mappings().one()
         db.commit()
@@ -257,10 +308,14 @@ def mobile_punch(
             """
         ),
         {
-            "now": now, "selfie": payload.check_out_selfie_path,
-            "lat": payload.latitude, "lng": payload.longitude,
-            "accuracy": payload.accuracy, "distance": distance,
-            "ot": round(overtime_hours,2), "regular_hours": round(regular_hours,2),
+            "now": now,
+            "selfie": payload.check_out_selfie_path,
+            "lat": payload.latitude,
+            "lng": payload.longitude,
+            "accuracy": payload.accuracy,
+            "distance": distance,
+            "ot": round(overtime_hours, 2),
+            "regular_hours": round(regular_hours, 2),
             "id": existing["id"],
         },
     ).mappings().one()
