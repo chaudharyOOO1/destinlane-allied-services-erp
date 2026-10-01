@@ -16,29 +16,17 @@ def _password_bytes(password: str) -> bytes:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
-        return bcrypt.checkpw(
-            _password_bytes(plain_password),
-            hashed_password.encode("utf-8"),
-        )
+        return bcrypt.checkpw(_password_bytes(plain_password), hashed_password.encode("utf-8"))
     except (ValueError, TypeError, bcrypt.Error):
         return False
 
 
 def get_password_hash(password: str) -> str:
-    pwd_bytes = _password_bytes(password)
-    return bcrypt.hashpw(pwd_bytes, bcrypt.gensalt()).decode("utf-8")
+    return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("utf-8")
 
 
-def create_access_token(
-    subject: Union[str, Any],
-    expires_delta: Optional[timedelta] = None,
-    role: Optional[Union[str, Any]] = None,
-) -> str:
-    expire = datetime.now(timezone.utc) + (
-        expires_delta
-        if expires_delta
-        else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
+def create_access_token(subject: Union[str, Any], expires_delta: Optional[timedelta] = None, role: Optional[Union[str, Any]] = None) -> str:
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     payload = {"exp": expire, "sub": str(subject)}
     if role is not None:
         payload["role"] = getattr(role, "value", role)
