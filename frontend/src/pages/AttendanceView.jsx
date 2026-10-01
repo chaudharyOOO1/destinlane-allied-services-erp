@@ -9,16 +9,15 @@ import BulkAttendanceModal from '../modals/BulkAttendanceModal';
 import { useAuth } from '../context/useAuth';
 import { formatDate } from '../utils/helpers';
 import api from '../api/axios';
-import { INITIAL_ATTENDANCE, INITIAL_SITES, INITIAL_ROSTERS } from '../api/mockData';
 import { ClipboardList, Plus, CheckCircle2, XCircle, Clock, Shield } from 'lucide-react';
 
 export default function AttendanceView() {
   const { user } = useAuth();
   const role = user?.role || 'ADMIN';
 
-  const [attendance, setAttendance] = useState(INITIAL_ATTENDANCE);
-  const [sites, setSites] = useState(INITIAL_SITES);
-  const [rosters, setRosters] = useState(INITIAL_ROSTERS);
+  const [attendance, setAttendance] = useState([]);
+  const [sites, setSites] = useState([]);
+  const [rosters, setRosters] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
