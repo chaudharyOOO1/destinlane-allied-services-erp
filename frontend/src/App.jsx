@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import AdminSetup from './pages/AdminSetup';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import AdminRecovery from './pages/AdminRecovery';
 import Dashboard from './pages/Dashboard';
 import ERPModules from './pages/ERPModules';
 import Employees from './pages/Employees';
@@ -28,6 +29,7 @@ function App() {
     <Route path="/admin-setup" element={<AdminSetup />} />
     <Route path="/forgot-password" element={<ForgotPassword />} />
     <Route path="/reset-password" element={<ResetPassword />} />
+    <Route path="/admin-recovery" element={<AdminRecovery />} />
     <Route element={<ProtectedRoute />}>
       <Route path="/erp" element={<ERPModules />} />
       <Route path="/dashboard" element={<Dashboard />} />
