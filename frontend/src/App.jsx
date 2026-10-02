@@ -18,6 +18,7 @@ import OwnerExecutiveView from './pages/OwnerExecutiveView';
 import PayrollView from './pages/PayrollView';
 import UserManagement from './pages/UserManagement';
 import IfscMaster from './pages/IfscMaster';
+import AccountSettings from './pages/AccountSettings';
 import './App.css';
 
 function App() {
@@ -42,6 +43,7 @@ function App() {
       <Route path="/owner-executive" element={<OwnerExecutiveView />} />
       <Route path="/users" element={<UserManagement />} />
       <Route path="/ifsc-master" element={<IfscMaster />} />
+      <Route path="/account" element={<AccountSettings />} />
     </Route>
     <Route path="/" element={<Navigate to="/erp" replace />} />
     <Route path="*" element={<Navigate to="/erp" replace />} />
