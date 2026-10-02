@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useAuth } from '../context/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
 import CommandPalette from '../components/CommandPalette';
 import {
@@ -37,17 +36,16 @@ const NAV_GROUPS = [
 ];
 
 export default function MainLayout({ children, onQuickAction = null }) {
-  const { user, logout, apiConnected, can } = useAuth();
+  const user = { full_name: 'Administrator', role: 'ADMIN' };
+  const apiConnected = true;
   const navigate = useNavigate();
   const location = useLocation();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
 
-  const role = user?.role || 'STAFF';
-  const visibleGroups = NAV_GROUPS
-    .map(group => ({ ...group, items: group.items.filter(item => !item.permission || can(item.permission)) }))
-    .filter(group => group.items.length > 0);
+  const role = 'ADMIN';
+  const visibleGroups = NAV_GROUPS;
 
   const go = (path) => { navigate(path); setMobileMenuOpen(false); };
 
@@ -111,8 +109,8 @@ export default function MainLayout({ children, onQuickAction = null }) {
                     <p className="text-xs font-semibold text-slate-800">{user?.full_name || 'Account'}</p>
                     <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">{role}</p>
                   </div>
-                  <button onClick={() => { logout(); navigate('/login'); }} className="mt-2 w-full px-3 py-2 rounded-lg text-left text-xs font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2">
-                    <LogOut className="w-3.5 h-3.5" /> Sign out
+                  <button onClick={() => setPersonaMenuOpen(false)} className="mt-2 w-full px-3 py-2 rounded-lg text-left text-xs font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2">
+                    <LogOut className="w-3.5 h-3.5" /> Close
                   </button>
                 </div>
               )}
