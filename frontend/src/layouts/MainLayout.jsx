@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import CommandPalette from '../components/CommandPalette';
 import {
   LayoutDashboard, Users, MapPin, ClipboardList, ReceiptText, Shield,
@@ -36,7 +37,7 @@ const NAV_GROUPS = [
 ];
 
 export default function MainLayout({ children, onQuickAction = null }) {
-  const user = { full_name: 'Administrator', role: 'ADMIN' };
+  const { user, logout } = useAuth();
   const apiConnected = true;
   const navigate = useNavigate();
   const location = useLocation();
@@ -44,8 +45,8 @@ export default function MainLayout({ children, onQuickAction = null }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
 
-  const role = 'ADMIN';
-  const visibleGroups = NAV_GROUPS;
+  const role = user?.role || 'STAFF';
+  const visibleGroups = NAV_GROUPS.filter(group => group.items.some(item => !item.permission || (user?.role === 'OWNER' || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || item.permission !== 'owner.view')));
 
   const go = (path) => { navigate(path); setMobileMenuOpen(false); };
 
@@ -109,8 +110,8 @@ export default function MainLayout({ children, onQuickAction = null }) {
                     <p className="text-xs font-semibold text-slate-800">{user?.full_name || 'Account'}</p>
                     <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">{role}</p>
                   </div>
-                  <button onClick={() => setPersonaMenuOpen(false)} className="mt-2 w-full px-3 py-2 rounded-lg text-left text-xs font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2">
-                    <LogOut className="w-3.5 h-3.5" /> Close
+                  <button onClick={() => { setPersonaMenuOpen(false); logout(); }} className="mt-2 w-full px-3 py-2 rounded-lg text-left text-xs font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2">
+                    <LogOut className="w-3.5 h-3.5" /> Sign out
                   </button>
                 </div>
               )}
@@ -156,14 +157,14 @@ export default function MainLayout({ children, onQuickAction = null }) {
                 </div>
               </div>
             </button>
-            <p className="text-[9px] text-slate-400 px-1 mt-2">Northlane Allied Services · ERP</p>
+            <p className="text-[9px] text-slate-400 px-1 mt-2">DestinLane Allied Services · ERP</p>
           </div>
         </aside>
 
         {mobileMenuOpen && (
           <div className="md:hidden fixed inset-x-0 top-16 bottom-0 bg-white z-40 overflow-y-auto p-4">
             <div className="pb-3 mb-3 border-b border-slate-200">
-              <p className="text-xs font-semibold text-slate-900">Northlane Allied Services</p>
+              <p className="text-xs font-semibold text-slate-900">DestinLane Allied Services</p>
               <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">{role} workspace</p>
             </div>
             {visibleGroups.map(group => (
