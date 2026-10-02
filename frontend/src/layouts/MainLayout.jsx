@@ -46,7 +46,19 @@ export default function MainLayout({ children, onQuickAction = null }) {
   const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
 
   const role = user?.role || 'STAFF';
-  const visibleGroups = NAV_GROUPS.filter(group => group.items.some(item => !item.permission || (user?.role === 'OWNER' || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || item.permission !== 'owner.view')));
+  const ROLE_PERMISSIONS = {
+    OWNER: new Set(['*']),
+    SUPER_ADMIN: new Set(['dashboard.view','employees.view','rosters.view','attendance.view','clients.view','sites.view','billing.view','payroll.view','finance.view','compliance.view','risks.view','user_management.view']),
+    ADMIN: new Set(['dashboard.view','employees.view','rosters.view','attendance.view','clients.view','sites.view','billing.view','payroll.view','finance.view','compliance.view','risks.view','user_management.view']),
+    HR: new Set(['dashboard.view','employees.view','compliance.view','user_management.view']),
+    OPERATIONS: new Set(['dashboard.view','employees.view','rosters.view','attendance.view','clients.view','sites.view']),
+    ACCOUNTS: new Set(['dashboard.view','billing.view','payroll.view','finance.view','compliance.view']),
+    SUPERVISOR: new Set(['dashboard.view','employees.view','rosters.view','attendance.view','sites.view']),
+    CLIENT: new Set(['dashboard.view','attendance.view','clients.view','sites.view','rosters.view']),
+    STAFF: new Set(['dashboard.view','attendance.view','sites.view','rosters.view']),
+  };
+  const allowed = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.STAFF;
+  const visibleGroups = NAV_GROUPS.map(group => ({ ...group, items: group.items.filter(item => allowed.has('*') || allowed.has(item.permission)) })).filter(group => group.items.length);
 
   const go = (path) => { navigate(path); setMobileMenuOpen(false); };
 
