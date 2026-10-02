@@ -1,4 +1,4 @@
-"""DestinLane v2.0 - Expand user_role_enum and guard_status_enum
+"""DestinLane Allied Services v2.0 - Expand user_role_enum and guard_status_enum
 
 Revision ID: 0002_destinlane_roles_v2
 Revises: 0001_initial_schema
