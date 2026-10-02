@@ -6,13 +6,11 @@ import Table from '../components/Table';
 import StatusBadge from '../components/StatusBadge';
 import DetailDrawer from '../components/DetailDrawer';
 import SiteModal from '../modals/SiteModal';
-import { useAuth } from '../context/useAuth';
 import api from '../api/axios';
 import { MapPin, Plus, Building2, Sun, Moon, ShieldCheck, Edit3, Phone } from 'lucide-react';
 
 export default function SitesView() {
-  const { user } = useAuth();
-  const role = user?.role || 'ADMIN';
+  const role = 'ADMIN';
 
   const [sites, setSites] = useState([]);
   const [clients, setClients] = useState([]);
