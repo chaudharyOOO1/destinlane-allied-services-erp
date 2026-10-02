@@ -1,6 +1,4 @@
 import axios from 'axios';
-import { TOKEN_KEY } from '../context/AuthContext';
-
 const envApiUrl = import.meta.env.VITE_API_BASE_URL;
 const API_BASE_URL = envApiUrl
   ? (envApiUrl.endsWith('/api/v1') ? envApiUrl : `${envApiUrl.replace(/\/$/, '')}/api/v1`)
@@ -11,7 +9,7 @@ export { API_BASE_URL };
 const api = axios.create({ baseURL: API_BASE_URL, headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = localStorage.getItem('destinlane_access_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
