@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -15,6 +16,7 @@ from app.schemas.token import LoginRequest, Token
 from app.schemas.user import UserResponse
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class AdminSetupRequest(BaseModel):
@@ -83,13 +85,23 @@ class AdminRecoveryRequest(BaseModel):
 def admin_recover_password(payload: AdminRecoveryRequest, db: Session = Depends(get_db)):
     if not settings.ADMIN_SETUP_TOKEN or payload.recovery_token != settings.ADMIN_SETUP_TOKEN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Administrator recovery is not authorized.')
+    if len(payload.new_password.encode('utf-8')) > 72:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Password must be at most 72 UTF-8 bytes.')
     account = db.query(User).filter(User.login_id == payload.login_id.strip().upper()).first()
     if not account or account.role not in [UserRole.OWNER, UserRole.SUPER_ADMIN] or not account.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Administrator account not found.')
-    crud_user.update(db, db_obj=account, obj_in={
-        'password': payload.new_password,
-        'password_initialized_at': datetime.now(timezone.utc),
-    })
+    try:
+        crud_user.update(db, db_obj=account, obj_in={
+            'password': payload.new_password,
+            'password_initialized_at': datetime.now(timezone.utc),
+        })
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        logger.exception('Administrator password recovery failed for login_id=%s', account.login_id)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Administrator password reset could not be completed.') from None
     return {'success': True, 'message': 'Administrator password has been reset. You can now sign in.'}
 
 
