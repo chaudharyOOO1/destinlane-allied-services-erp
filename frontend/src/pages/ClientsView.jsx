@@ -6,13 +6,11 @@ import Table from '../components/Table';
 import StatusBadge from '../components/StatusBadge';
 import DetailDrawer from '../components/DetailDrawer';
 import ClientModal from '../modals/ClientModal';
-import { useAuth } from '../context/useAuth';
 import api from '../api/axios';
 import { Users, Plus, Building2, Mail, Phone, MapPin, Edit3, Shield, ShieldAlert } from 'lucide-react';
 
 export default function ClientsView() {
-  const { user } = useAuth();
-  const role = user?.role || 'ADMIN';
+  const role = 'ADMIN';
 
   const [clients, setClients] = useState([]);
   const [sites, setSites] = useState([]);
