@@ -13,7 +13,7 @@ from app.api.permissions import effective_permissions
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import create_access_token, get_password_hash, verify_password
-from app.core.supabase_auth import provision_supabase_password_user, verify_supabase_password
+from app.core.supabase_auth import authenticate_supabase_user, provision_supabase_password_user, verify_supabase_password
 from app.crud.crud_user import user as crud_user
 from app.models.user import User
 from app.schemas.token import Token, LoginRequest
@@ -24,20 +24,33 @@ router = APIRouter()
 
 def _authenticate(db: Session, login_id: str, password: str) -> User | None:
     identifier = login_id.strip()
-    user = crud_user.get_by_login_id(db, login_id=identifier)
-    if not user:
-        user = crud_user.get_by_email(db, email=identifier)
-    if not user:
-        user = db.query(User).filter(User.phone_number == identifier).first()
-    if not user or not user.is_active:
+
+    # Production authentication is anchored to Supabase Auth + public.users.
+    # This avoids making login dependent on the serverless function's SQLAlchemy
+    # connection pool, which can fail independently of Supabase.
+    supabase_user = authenticate_supabase_user(identifier, password)
+    if supabase_user:
+        return supabase_user
+
+    # Keep the existing database path as a compatibility fallback for local
+    # development and environments where Supabase credentials are not configured.
+    try:
+        user = crud_user.get_by_login_id(db, login_id=identifier)
+        if not user:
+            user = crud_user.get_by_email(db, email=identifier)
+        if not user:
+            user = db.query(User).filter(User.phone_number == identifier).first()
+        if not user or not user.is_active:
+            return None
+
+        auth_result = verify_supabase_password(identifier=user.email, password=password)
+        if auth_result:
+            return user
+
+        if settings.ALLOW_LOCAL_PASSWORD_FALLBACK and verify_password(password, user.hashed_password):
+            return user
+    except Exception:
         return None
-
-    auth_result = verify_supabase_password(identifier=user.email, password=password)
-    if auth_result:
-        return user
-
-    if settings.ALLOW_LOCAL_PASSWORD_FALLBACK and verify_password(password, user.hashed_password):
-        return user
 
     return None
 
