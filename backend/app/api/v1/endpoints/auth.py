@@ -126,8 +126,20 @@ def setup_admin_password(setup_data: AdminSetupRequest, db: Session = Depends(ge
     admin.hashed_password = get_password_hash(setup_data.password)
     admin.password_initialized_at = db.query(func.now()).scalar()
     db.add(admin)
+
+    # Fresh ERP bootstrap: disable all legacy/dummy accounts so the new
+    # administrator is the only active account after a reset.
+    db.query(User).filter(User.id != admin.id).update(
+        {User.is_active: False},
+        synchronize_session=False,
+    )
+
     db.commit()
-    return {"status": "success", "message": "Administrator Login ID and password are now synchronized with Supabase Auth."}
+    return {
+        "status": "success",
+        "message": "Fresh DestinLane administrator authentication has been initialized.",
+        "login_id": login_id,
+    }
 
 
 class ChangePasswordRequest(BaseModel):
