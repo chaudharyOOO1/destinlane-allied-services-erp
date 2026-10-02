@@ -13,7 +13,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { if (user) navigate('/erp', { replace: true }); }, [user, navigate]);
+  useEffect(() => { const hash = new URLSearchParams(window.location.hash.replace(/^#/, '')); if (hash.get('access_token') && hash.get('type') === 'recovery') { navigate('/reset-password' + window.location.hash, { replace: true }); return; } if (user) navigate('/erp', { replace: true }); }, [user, navigate]);
 
   async function submit(event) {
     event.preventDefault();
