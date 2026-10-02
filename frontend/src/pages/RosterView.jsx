@@ -6,14 +6,12 @@ import Table from '../components/Table';
 import StatusBadge from '../components/StatusBadge';
 import DetailDrawer from '../components/DetailDrawer';
 import RosterModal from '../modals/RosterModal';
-import { useAuth } from '../context/useAuth';
 import { formatDate } from '../utils/helpers';
 import api from '../api/axios';
 import { Calendar, Plus, Sun, Moon, MapPin, Edit3, CheckCircle2, Shield } from 'lucide-react';
 
 export default function RosterView() {
-  const { user } = useAuth();
-  const role = user?.role || 'ADMIN';
+  const role = 'ADMIN';
 
   const [rosters, setRosters] = useState([]);
   const [guards, setGuards] = useState([]);
