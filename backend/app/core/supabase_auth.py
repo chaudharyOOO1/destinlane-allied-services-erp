@@ -1,7 +1,11 @@
 import json
 import urllib.error
 import urllib.request
+from urllib.parse import quote, urlencode
 from typing import Any
+
+from app.models.enums import UserRole
+from app.models.user import User
 
 from app.core.config import settings
 
@@ -77,6 +81,56 @@ def verify_supabase_password(*, identifier: str, password: str) -> dict[str, Any
             return json.loads(response.read().decode("utf-8"))
     except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError):
         return None
+
+
+def get_supabase_user_profile(identifier: str) -> dict[str, Any] | None:
+    headers = _auth_headers()
+    if not headers:
+        return None
+    value = identifier.strip()
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    filters = f"or=(login_id.eq.{quote(escaped, safe='')},email.eq.{quote(escaped, safe='')},phone_number.eq.{quote(escaped, safe='')})"
+    query = urlencode({
+        "select": "id,email,login_id,full_name,phone_number,role,is_active,is_superuser",
+        "limit": "1",
+    }) + "&" + filters
+    request = urllib.request.Request(
+        f"{settings.SUPABASE_URL.rstrip('/')}/rest/v1/users?{query}",
+        headers={**headers, "Accept": "application/json"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=8) as response:
+            rows = json.loads(response.read().decode("utf-8"))
+        return rows[0] if rows else None
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError):
+        return None
+
+
+def authenticate_supabase_user(identifier: str, password: str) -> User | None:
+    profile = get_supabase_user_profile(identifier)
+    if not profile or not profile.get("is_active"):
+        return None
+
+    email = str(profile.get("email") or "").strip()
+    if not email or not verify_supabase_password(identifier=email, password=password):
+        return None
+
+    try:
+        role = UserRole(str(profile.get("role") or "STAFF"))
+    except ValueError:
+        role = UserRole.STAFF
+
+    return User(
+        id=int(profile["id"]),
+        email=email,
+        login_id=profile.get("login_id"),
+        full_name=profile.get("full_name") or email,
+        phone_number=profile.get("phone_number"),
+        role=role,
+        is_active=bool(profile.get("is_active")),
+        is_superuser=bool(profile.get("is_superuser")),
+    )
 
 
 def upload_supabase_storage(*, bucket: str, path: str, data: bytes, content_type: str) -> str | None:
