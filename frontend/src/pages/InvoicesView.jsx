@@ -10,16 +10,15 @@ import InvoicePrintModal from '../modals/InvoicePrintModal';
 import { useAuth } from '../context/useAuth';
 import { formatCurrency, formatDate } from '../utils/helpers';
 import api from '../api/axios';
-import { INITIAL_INVOICES, INITIAL_CLIENTS, INITIAL_SITES } from '../api/mockData';
 import { ReceiptText, Plus, DollarSign, CheckCircle2, Clock, Printer, ShieldAlert } from 'lucide-react';
 
 export default function InvoicesView() {
   const { user } = useAuth();
   const role = user?.role || 'ADMIN';
 
-  const [invoices, setInvoices] = useState(INITIAL_INVOICES);
-  const [clients, setClients] = useState(INITIAL_CLIENTS);
-  const [sites, setSites] = useState(INITIAL_SITES);
+  const [invoices, setInvoices] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [sites, setSites] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [monthFilter, setMonthFilter] = useState('ALL');

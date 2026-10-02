@@ -73,11 +73,18 @@ def login_access_token(
     return _token_response(user)
 
 
-def _validate_password_bytes(value: str) -> str:\n    if len(value.encode("utf-8")) > 72:\n        raise ValueError("Password must be at most 72 UTF-8 bytes.")\n    return value\n\n\nclass AdminSetupRequest(BaseModel):
+def _validate_password_bytes(value: str) -> str:
+    if len(value.encode("utf-8")) > 72:
+        raise ValueError("Password must be at most 72 UTF-8 bytes.")
+    return value
+
+
+class AdminSetupRequest(BaseModel):
     email: EmailStr
     login_id: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=12, max_length=72)
-    setup_token: str = Field(min_length=16, max_length=256)\n    _password_bytes = field_validator("password")(_validate_password_bytes)
+    setup_token: str = Field(min_length=16, max_length=256)
+    _password_bytes = field_validator("password")(_validate_password_bytes)
 
 
 @router.post("/setup-admin")
@@ -112,7 +119,8 @@ def setup_admin_password(setup_data: AdminSetupRequest, db: Session = Depends(ge
 
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=72)
-    new_password: str = Field(min_length=12, max_length=72)\n    _password_bytes = field_validator("new_password")(_validate_password_bytes)
+    new_password: str = Field(min_length=12, max_length=72)
+    _password_bytes = field_validator("new_password")(_validate_password_bytes)
 
 
 @router.post("/change-password")
