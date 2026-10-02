@@ -7,14 +7,12 @@ import StatusBadge from '../components/StatusBadge';
 import DetailDrawer from '../components/DetailDrawer';
 import GenerateInvoiceModal from '../modals/GenerateInvoiceModal';
 import InvoicePrintModal from '../modals/InvoicePrintModal';
-import { useAuth } from '../context/useAuth';
 import { formatCurrency, formatDate } from '../utils/helpers';
 import api from '../api/axios';
 import { ReceiptText, Plus, DollarSign, CheckCircle2, Clock, Printer, ShieldAlert } from 'lucide-react';
 
 export default function InvoicesView() {
-  const { user } = useAuth();
-  const role = user?.role || 'ADMIN';
+  const role = 'ADMIN';
 
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);
