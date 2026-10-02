@@ -10,7 +10,6 @@ import RosterModal from '../modals/RosterModal';
 import BulkAttendanceModal from '../modals/BulkAttendanceModal';
 import GenerateInvoiceModal from '../modals/GenerateInvoiceModal';
 import InvoicePrintModal from '../modals/InvoicePrintModal';
-import { useAuth } from '../context/useAuth';
 import { formatCurrency, formatDate } from '../utils/helpers';
 import api from '../api/axios';
 import {
@@ -34,7 +33,7 @@ import {
 } from 'lucide-react';
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const user = { role: 'ADMIN', full_name: 'Administrator' };
   const navigate = useNavigate();
   const role = user?.role || 'ADMIN';
 
