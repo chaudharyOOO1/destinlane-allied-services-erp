@@ -1,29 +1,29 @@
-# APEX OPS — Security & Facility ERP
+# DestinLane Allied Services ERP — Security & Facility ERP
 ## Visual Walkthrough · Client Review Document
 **Prepared:** 31 August 2026 &nbsp;|&nbsp; **Build:** v1.0 Production Ready &nbsp;|&nbsp; **Status:** 🟢 Live Demo Mode Active
 
 ---
 
 > [!NOTE]
-> This document presents a full screen-by-screen walkthrough of the **APEX OPS Security & Facility Management ERP** for client review. Screenshots are taken directly from the live running application at `http://localhost:5173`. The system works in **offline demo mode** (no backend required) and will seamlessly switch to **live API mode** when the FastAPI backend is connected.
+> This document presents a full screen-by-screen walkthrough of the **DestinLane Allied Services ERP Security & Facility Management ERP** for client review. Screenshots are taken directly from the live running application at `http://localhost:5173`. The system works in **offline demo mode** (no backend required) and will seamlessly switch to **live API mode** when the FastAPI backend is connected.
 
 ---
 
 ## 🔐 Screen 1 — Secure Authentication Portal
 
-![APEX OPS Login Portal](C:\Users\rajea\.gemini\antigravity\brain\1dad4690-1757-426b-9479-0accd19a5064\01_login_portal.png)
+![DestinLane Allied Services ERP Login Portal](C:\Users\rajea\.gemini\antigravity\brain\1dad4690-1757-426b-9479-0accd19a5064\01_login_portal.png)
 
 **What this screen does:**
 - Clean, professional login form with **Email Credentials** + **Password Key**
 - **1-Click Demo Personas** row at the bottom — instantly access the system as **Admin (Full Control)**, **Client (Acme Corp)**, or **Guard (Staff Gate)** without typing credentials
 - The system auto-detects backend availability; if the FastAPI server is offline, it falls back to zero-friction demo mode
-- Branded with **APEX OPS // 2026** identity and the Security & Facility ERP tagline
+- Branded with **DestinLane Allied Services ERP // 2026** identity and the Security & Facility ERP tagline
 
 ---
 
 ## 🏠 Screen 2 — Security Control Room (Dashboard)
 
-![APEX OPS Dashboard](C:\Users\rajea\.gemini\antigravity\brain\1dad4690-1757-426b-9479-0accd19a5064\02_dashboard_overview.png)
+![DestinLane Allied Services ERP Dashboard](C:\Users\rajea\.gemini\antigravity\brain\1dad4690-1757-426b-9479-0accd19a5064\02_dashboard_overview.png)
 
 **What this screen does:**
 
@@ -227,7 +227,7 @@ The financial control centre for the business:
 > [!IMPORTANT]
 > Please review each section and provide feedback on the following:
 
-1. **Branding** — Should "APEX OPS" reflect your actual company name/logo?
+1. **Branding** — Should "DestinLane Allied Services ERP" reflect your actual company name/logo?
 2. **Data Fields** — Are there additional guard or client fields needed (e.g., NID/Aadhaar, contract value)?
 3. **Roles** — Are the 3 roles (Admin, Client, Staff) sufficient, or do you need sub-roles (e.g., Site Supervisor)?
 4. **Reports** — Do you need monthly PDF payroll reports, or export to Excel for attendance/billing?
@@ -237,7 +237,7 @@ The financial control centre for the business:
 
 ---
 
-*APEX OPS Security & Facility ERP — Confidential Client Preview · August 2026*
+*DestinLane Allied Services ERP Security & Facility ERP — Confidential Client Preview · August 2026*
 
 ## Live production data layer
 
