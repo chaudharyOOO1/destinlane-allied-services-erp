@@ -6,14 +6,12 @@ import Table from '../components/Table';
 import StatusBadge from '../components/StatusBadge';
 import DetailDrawer from '../components/DetailDrawer';
 import BulkAttendanceModal from '../modals/BulkAttendanceModal';
-import { useAuth } from '../context/useAuth';
 import { formatDate } from '../utils/helpers';
 import api from '../api/axios';
 import { ClipboardList, Plus, CheckCircle2, XCircle, Clock, Shield } from 'lucide-react';
 
 export default function AttendanceView() {
-  const { user } = useAuth();
-  const role = user?.role || 'ADMIN';
+  const role = 'ADMIN';
 
   const [attendance, setAttendance] = useState([]);
   const [sites, setSites] = useState([]);
