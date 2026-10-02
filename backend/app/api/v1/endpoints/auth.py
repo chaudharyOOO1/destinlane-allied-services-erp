@@ -73,6 +73,26 @@ def setup_admin(payload: AdminSetupRequest, db: Session = Depends(get_db)):
     return updated
 
 
+class AdminRecoveryRequest(BaseModel):
+    recovery_token: str = Field(min_length=8)
+    login_id: str = Field(min_length=3, max_length=50)
+    new_password: str = Field(min_length=12, max_length=72)
+
+
+@router.post('/admin-recover-password')
+def admin_recover_password(payload: AdminRecoveryRequest, db: Session = Depends(get_db)):
+    if not settings.ADMIN_SETUP_TOKEN or payload.recovery_token != settings.ADMIN_SETUP_TOKEN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Administrator recovery is not authorized.')
+    account = db.query(User).filter(User.login_id == payload.login_id.strip().upper()).first()
+    if not account or account.role not in [UserRole.OWNER, UserRole.SUPER_ADMIN] or not account.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Administrator account not found.')
+    crud_user.update(db, db_obj=account, obj_in={
+        'password': payload.new_password,
+        'password_initialized_at': datetime.now(timezone.utc),
+    })
+    return {'success': True, 'message': 'Administrator password has been reset. You can now sign in.'}
+
+
 @router.post('/change-password', response_model=UserResponse)
 def change_password(payload: ChangePasswordRequest, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     if not crud_user.authenticate(db, login_id=current_user.login_id or current_user.email, password=payload.current_password):
