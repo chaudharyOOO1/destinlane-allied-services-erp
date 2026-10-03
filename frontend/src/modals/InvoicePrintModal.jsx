@@ -26,7 +26,7 @@ export default function InvoicePrintModal({ isOpen, onClose, invoice = null }) {
               <Shield className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white tracking-wider">APEX SECURITY OPS ERP</h2>
+              <h2 className="text-xl font-black text-white tracking-wider">DESTINLANE ALLIED SERVICES ERP</h2>
               <p className="text-slate-400 text-xs">Facility Guard Management & Surveillance</p>
               <p className="text-[11px] text-slate-500 mt-0.5">GSTIN: 06AAAAA9999Z1Z8 | info@apexsecurity.io</p>
             </div>

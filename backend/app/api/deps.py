@@ -18,7 +18,10 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login
 
 def _request_permission(request: Request) -> str | None:
     path = request.url.path.rstrip("/")
-    if path.startswith("/api/v1/auth") or path in {"/health", ""}:
+    api_prefix = settings.API_V1_STR.rstrip("/")
+    if path.startswith(api_prefix + "/"):
+        path = path[len(api_prefix):]
+    if path == "/auth" or path.startswith("/auth/") or path in {"/health", ""}:
         return None
     mappings = [
         ("/users","user_management"),("/owner","owner"),("/erp/employees","employees"),
@@ -26,8 +29,12 @@ def _request_permission(request: Request) -> str | None:
         ("/erp/contracts","contracts"),("/erp/sites","sites"),("/erp/rosters","rosters"),
         ("/erp/attendance","attendance"),("/erp/payroll","payroll"),("/erp/accounts","finance"),
         ("/erp/billing","billing"),("/erp/compliance","compliance"),("/erp/risks","risks"),
+        ("/erp/summary","dashboard"),("/erp/ifsc","employees"),
+        ("/erp/employee-documents","employees"),("/erp/compliance-expiry","compliance"),
+        ("/erp/corporate-compliances","compliance"),("/erp/expenses","finance"),
+        ("/erp/risk-flags","risks"),("/erp/risk-engine","risks"),
     ]
-    module = next((m for prefix,m in mappings if path.startswith(prefix)), None)
+    module = next((m for prefix,m in mappings if path == prefix or path.startswith(prefix + "/")), None)
     if module is None:
         return "__unknown__"
     action = {"GET":"view","POST":"create","PUT":"edit","PATCH":"edit","DELETE":"delete"}.get(request.method.upper(),"view")

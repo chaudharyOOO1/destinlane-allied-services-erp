@@ -146,7 +146,7 @@ def salary_slip_pdf(slip_id: int, db: Session = Depends(get_db), current_user=De
     pdf = canvas.Canvas(buf, pagesize=A4)
     pdf.setTitle(f"Salary Slip {row['employee_code']}")
     y = 800
-    pdf.setFont("Helvetica-Bold", 16); pdf.drawString(50,y,"Northlane Allied Services — Salary Slip"); y -= 30
+    pdf.setFont("Helvetica-Bold", 16); pdf.drawString(50,y,"DestinLane Allied Services — Salary Slip"); y -= 30
     pdf.setFont("Helvetica", 10); pdf.drawString(50,y,f"Employee: {row['name']} ({row['employee_code']})"); y -= 18
     pdf.drawString(50,y,f"Payroll Month: {row['payroll_month']}"); y -= 30
     for label,key in [("Present Days","present_days"),("Regular Hours","regular_hours"),("Overtime Hours","overtime_hours"),("Basic","basic"),("HRA","hra"),("Allowances","allowances"),("Overtime Pay","overtime_pay"),("Night Shift Allowance","night_shift_allowance"),("Gross Pay","gross_pay"),("PF","pf"),("ESIC","esic"),("LWF","lwf"),("Uniform EMI","uniform_emi"),("Total Deductions","total_deductions"),("Net Pay","net_pay")]:

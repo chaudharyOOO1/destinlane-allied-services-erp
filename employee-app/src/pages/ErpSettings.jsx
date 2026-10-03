@@ -170,7 +170,7 @@ export default function ErpSettings() {
               <Label htmlFor="api_base_url">API Base URL</Label>
               <Input
                 id="api_base_url"
-                placeholder="https://erp.fortellus.com/api"
+                placeholder="https://destinlane-allied-services-erp-omega.vercel.app/api"
                 value={form.api_base_url}
                 onChange={(e) => setForm({ ...form, api_base_url: e.target.value })}
               />

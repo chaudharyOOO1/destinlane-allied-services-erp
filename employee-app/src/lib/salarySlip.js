@@ -16,7 +16,7 @@ export function generateSalarySlip(employee, salary) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.text(`Pay Period: ${salary.month}`, pageW - left, 14, { align: "right" });
-  doc.text("Fortellus Allied Services Pvt Ltd (FAS)", left, 21);
+  doc.text("DestinLane Allied Services Pvt Ltd", left, 21);
 
   y = 40;
   doc.setTextColor(15, 23, 42);

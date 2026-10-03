@@ -45,7 +45,7 @@ export default function Personnel(){
  return <MainLayout>
   <div className="space-y-6">
    <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-    <div><p className="text-xs font-semibold uppercase tracking-[.18em] text-teal-600">Fortellus Workforce</p><h1 className="mt-2 text-3xl font-semibold text-slate-900">Staff Master</h1><p className="mt-1 text-sm text-slate-500">Security, housekeeping and healthcare personnel with recruitment and compliance controls.</p></div>
+    <div><p className="text-xs font-semibold uppercase tracking-[.18em] text-teal-600">DestinLane Workforce</p><h1 className="mt-2 text-3xl font-semibold text-slate-900">Staff Master</h1><p className="mt-1 text-sm text-slate-500">Security, housekeeping and healthcare personnel with recruitment and compliance controls.</p></div>
     <button onClick={()=>setCreateStaff(true)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"><UserPlus className="h-4 w-4"/>Create Staff</button><button onClick={runCompliance} className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"><ShieldCheck className="h-4 w-4"/>Run compliance check</button>
    </header>
    {message&&<div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{message}</div>}
