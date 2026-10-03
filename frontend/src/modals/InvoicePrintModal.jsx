@@ -2,8 +2,10 @@ import Modal from '../components/Modal';
 import { formatCurrency, formatDate } from '../utils/helpers';
 import StatusBadge from '../components/StatusBadge';
 import { Printer, Shield, CheckCircle2 } from 'lucide-react';
+import { useCompany } from '../context/CompanyContext';
 
 export default function InvoicePrintModal({ isOpen, onClose, invoice = null }) {
+  const { company, loading, error } = useCompany();
   if (!invoice) return null;
 
   function handlePrint() {
@@ -26,9 +28,10 @@ export default function InvoicePrintModal({ isOpen, onClose, invoice = null }) {
               <Shield className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white tracking-wider">DESTINLANE ALLIED SERVICES ERP</h2>
-              <p className="text-slate-400 text-xs">Facility Guard Management & Surveillance</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">GSTIN: 06AAAAA9999Z1Z8 | info@apexsecurity.io</p>
+              <h2 className="text-xl font-black text-white tracking-wider">{company.legal_name}</h2>
+              {company.address && <p className="text-slate-400 text-xs">{[company.address, company.city, company.state, company.pincode].filter(Boolean).join(', ')}</p>}
+              <p className="text-[11px] text-slate-500 mt-0.5">{[company.gstin && `GSTIN: ${company.gstin}`, company.contact_email, company.contact_phone].filter(Boolean).join(' | ')}</p>
+              {error && <p className="text-xs text-rose-500">{error}</p>}
             </div>
           </div>
 
@@ -117,6 +120,7 @@ export default function InvoicePrintModal({ isOpen, onClose, invoice = null }) {
           <button
             type="button"
             onClick={handlePrint}
+            disabled={loading || Boolean(error)}
             className="flex items-center gap-2 px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition-all shadow-lg shadow-cyan-500/20"
           >
             <Printer className="w-4 h-4" />

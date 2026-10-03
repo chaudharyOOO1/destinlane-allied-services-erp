@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCompany } from '../context/CompanyContext';
 import CommandPalette from '../components/CommandPalette';
 import {
   LayoutDashboard, Users, MapPin, ClipboardList, ReceiptText, Shield,
@@ -29,6 +30,7 @@ const NAV_GROUPS = [
     { icon: CircleDollarSign, label: 'Accounts & GST', path: '/accounts', permission: 'finance.view' },
   ]},
   { label: 'Control', items: [
+    { icon: Building2, label: 'Company Profile & Docs', path: '/company', permission: 'company.view' },
     { icon: FileCheck2, label: 'Compliance', path: '/compliance', permission: 'compliance.view' },
     { icon: AlertTriangle, label: 'Risk Controls', path: '/risks', permission: 'risks.view' },
     { icon: UserCog, label: 'User Management', path: '/users', permission: 'user_management.view' },
@@ -38,6 +40,7 @@ const NAV_GROUPS = [
 
 export default function MainLayout({ children, onQuickAction = null }) {
   const { user, logout } = useAuth();
+  const { company } = useCompany();
   const apiConnected = true;
   const navigate = useNavigate();
   const location = useLocation();
@@ -58,6 +61,7 @@ export default function MainLayout({ children, onQuickAction = null }) {
     STAFF: new Set(['dashboard.view','attendance.view','sites.view','rosters.view']),
   };
   const allowed = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.STAFF;
+  if (['SUPER_ADMIN','ADMIN','HR','OPERATIONS','ACCOUNTS'].includes(role)) allowed.add('company.view');
   const visibleGroups = NAV_GROUPS.map(group => ({ ...group, items: group.items.filter(item => allowed.has('*') || allowed.has(item.permission)) })).filter(group => group.items.length);
 
   const go = (path) => { navigate(path); setMobileMenuOpen(false); };
@@ -84,7 +88,7 @@ export default function MainLayout({ children, onQuickAction = null }) {
               <Shield className="w-[18px] h-[18px]" />
             </div>
             <div className="hidden sm:block leading-tight">
-              <div className="text-[15px] font-semibold tracking-[-0.02em] text-slate-950">DESTINLANE</div>
+              <div className="max-w-52 truncate text-[15px] font-semibold tracking-[-0.02em] text-slate-950">{company.display_name}</div>
               <div className="text-[9px] font-medium tracking-[0.16em] text-slate-400 uppercase">Allied Services ERP</div>
             </div>
           </button>

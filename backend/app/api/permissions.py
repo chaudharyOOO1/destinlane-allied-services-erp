@@ -2,13 +2,13 @@ from typing import Dict, List
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-MODULES = ["dashboard","employees","recruitment","clients","sites","rosters","attendance","billing","payroll","finance","compliance","risks","owner","user_management"]
+MODULES = ["dashboard","employees","recruitment","clients","sites","rosters","attendance","billing","payroll","finance","compliance","risks","owner","user_management","company"]
 ACTIONS = ["view","create","edit","delete","approve","export"]
 ROLE_MODULE_DEFAULTS = {
     "OWNER": MODULES, "SUPER_ADMIN": MODULES, "ADMIN": MODULES,
-    "HR": ["dashboard","employees","recruitment","attendance","compliance"],
-    "OPERATIONS": ["dashboard","sites","rosters","attendance","risks"],
-    "ACCOUNTS": ["dashboard","clients","billing","payroll","finance","compliance"],
+    "HR": ["dashboard","employees","recruitment","attendance","compliance","company"],
+    "OPERATIONS": ["dashboard","sites","rosters","attendance","risks","company"],
+    "ACCOUNTS": ["dashboard","clients","billing","payroll","finance","compliance","company"],
     "SUPERVISOR": ["dashboard","sites","rosters","attendance"],
     "CLIENT": ["dashboard","clients","sites","rosters","attendance","billing"],
     "STAFF": ["dashboard","attendance"],

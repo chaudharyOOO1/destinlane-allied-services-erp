@@ -16,6 +16,7 @@ from app.models.guard import GuardProfile
 from app.models.roster import ShiftRoster
 from app.models.attendance import Attendance
 from app.models.invoice import Invoice
+from app.models.company import CompanySettings, CompanySettingsHistory, CompanyDocument
 
 __all__ = [
     "Base",

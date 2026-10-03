@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { CompanyProvider } from './context/CompanyContext';
+import CompanySettings from './pages/CompanySettings';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import AdminSetup from './pages/AdminSetup';
@@ -24,13 +26,14 @@ import AccountSettings from './pages/AccountSettings';
 import './App.css';
 
 function App() {
-  return <AuthProvider><Router><Routes>
+  return <AuthProvider><CompanyProvider><Router><Routes>
     <Route path="/login" element={<Login />} />
     <Route path="/admin-setup" element={<AdminSetup />} />
     <Route path="/forgot-password" element={<ForgotPassword />} />
     <Route path="/reset-password" element={<ResetPassword />} />
     <Route path="/admin-recovery" element={<AdminRecovery />} />
     <Route element={<ProtectedRoute />}>
+      <Route path="/company" element={<CompanySettings />} />
       <Route path="/erp" element={<ERPModules />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/employees" element={<Employees />} />
@@ -51,6 +54,6 @@ function App() {
     </Route>
     <Route path="/" element={<Navigate to="/erp" replace />} />
     <Route path="*" element={<Navigate to="/erp" replace />} />
-  </Routes></Router></AuthProvider>;
+  </Routes></Router></CompanyProvider></AuthProvider>;
 }
 export default App;

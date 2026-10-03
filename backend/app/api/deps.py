@@ -23,7 +23,10 @@ def _request_permission(request: Request) -> str | None:
         path = path[len(api_prefix):]
     if path == "/auth" or path.startswith("/auth/") or path in {"/health", ""}:
         return None
+    if path == "/erp/company/profile" and request.method.upper() == "GET":
+        return None
     mappings = [
+        ("/erp/company","company"),
         ("/users","user_management"),("/owner","owner"),("/erp/employees","employees"),
         ("/erp/recruitment","recruitment"),("/erp/staff","employees"),("/erp/clients","clients"),
         ("/erp/contracts","contracts"),("/erp/sites","sites"),("/erp/rosters","rosters"),
