@@ -1,4 +1,5 @@
 import logging
+import re
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -8,8 +9,20 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.core.database import engine
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_database_reason(original) -> str:
+    reason = str(original or "")
+    # Driver errors must never send connection credentials into runtime logs.
+    secrets = [engine.url.password, settings.DATABASE_URL, settings.POSTGRES_PASSWORD,
+               settings.SECRET_KEY, settings.SUPABASE_SERVICE_ROLE_KEY, settings.ADMIN_SETUP_TOKEN]
+    for secret in sorted((value for value in secrets if value), key=len, reverse=True):
+        reason = reason.replace(secret, "[redacted]")
+    reason = re.sub(r"postgres(?:ql)?(?:\+psycopg)?://[^\s]+", "[redacted connection URL]", reason)
+    return reason[:1500]
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -38,10 +51,17 @@ async def database_error(request: Request, exc: SQLAlchemyError):
         code = "DATABASE_HOST_UNRESOLVED"
     elif "connection refused" in message:
         code = "DATABASE_CONNECTION_REFUSED"
+    elif "tenant or user not found" in message:
+        code = "DATABASE_POOLER_IDENTITY_INVALID"
+    elif "password authentication failed" in message:
+        code = "DATABASE_CREDENTIALS_INVALID"
+    elif "timeout expired" in message or "connection timed out" in message:
+        code = "DATABASE_CONNECTION_TIMEOUT"
     else:
         code = "DATABASE_UNAVAILABLE"
-    logger.error("Database request failed: error_id=%s code=%s exception=%s sqlstate=%s path=%s",
-                 error_id, code, type(exc).__name__, sqlstate, request.url.path)
+    logger.error("Database request failed: error_id=%s code=%s exception=%s sqlstate=%s path=%s host=%s port=%s configured=%s reason=%s",
+                 error_id, code, type(exc).__name__, sqlstate, request.url.path,
+                 engine.url.host, engine.url.port, bool(settings.DATABASE_URL), _safe_database_reason(original))
     return JSONResponse(status_code=503, content={
         "detail": "The ERP database is unavailable. Please contact the administrator.",
         "error_code": code,

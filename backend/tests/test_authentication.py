@@ -111,3 +111,14 @@ def test_database_failure_returns_safe_diagnostic(client, monkeypatch):
     assert response.json()['error_id']
     assert 'private-db-host' not in response.text
     assert 'private_data' not in response.text
+
+
+def test_database_diagnostics_redact_connection_secrets(monkeypatch):
+    from app.main import _safe_database_reason
+    monkeypatch.setattr(settings, 'DATABASE_URL', 'postgresql://user:private-test-password@host/db')
+    monkeypatch.setattr(settings, 'POSTGRES_PASSWORD', 'private-test-password')
+    monkeypatch.setattr(settings, 'SUPABASE_SERVICE_ROLE_KEY', 'private-test-service-key')
+    reason = _safe_database_reason(Exception('failed postgresql://user:private-test-password@host/db private-test-service-key'))
+    assert 'private-test-password' not in reason
+    assert 'private-test-service-key' not in reason
+    assert 'postgresql://' not in reason
