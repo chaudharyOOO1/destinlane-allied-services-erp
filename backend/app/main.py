@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 def _safe_database_reason(original) -> str:
     reason = str(original or "")
+    if engine.url.host and "@" in engine.url.host:
+        reason = reason.replace(engine.url.host, "[invalid redacted host]")
     # Driver errors must never send connection credentials into runtime logs.
     secrets = [engine.url.password, settings.DATABASE_URL, settings.POSTGRES_PASSWORD,
                settings.SECRET_KEY, settings.SUPABASE_SERVICE_ROLE_KEY, settings.ADMIN_SETUP_TOKEN]
@@ -61,7 +63,8 @@ async def database_error(request: Request, exc: SQLAlchemyError):
         code = "DATABASE_UNAVAILABLE"
     logger.error("Database request failed: error_id=%s code=%s exception=%s sqlstate=%s path=%s host=%s port=%s configured=%s reason=%s",
                  error_id, code, type(exc).__name__, sqlstate, request.url.path,
-                 engine.url.host, engine.url.port, bool(settings.DATABASE_URL), _safe_database_reason(original))
+                 "[invalid redacted host]" if engine.url.host and "@" in engine.url.host else engine.url.host,
+                 engine.url.port, bool(settings.DATABASE_URL), _safe_database_reason(original))
     return JSONResponse(status_code=503, content={
         "detail": "The ERP database is unavailable. Please contact the administrator.",
         "error_code": code,

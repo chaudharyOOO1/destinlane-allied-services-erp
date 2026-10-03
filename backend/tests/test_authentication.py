@@ -122,3 +122,21 @@ def test_database_diagnostics_redact_connection_secrets(monkeypatch):
     assert 'private-test-password' not in reason
     assert 'private-test-service-key' not in reason
     assert 'postgresql://' not in reason
+
+
+@pytest.mark.parametrize('raw', [
+    'postgresql://postgres.project:test@8927@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require',
+    'postgres://postgres.project:test%408927@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require',
+    'postgresql+psycopg://postgres.project:test%408927@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require',
+])
+def test_database_url_password_separator_preserves_target(raw, monkeypatch):
+    from sqlalchemy.engine import make_url
+    monkeypatch.setattr(settings, 'DATABASE_URL', raw)
+    parsed = make_url(settings.sync_database_url)
+    assert parsed.drivername == 'postgresql+psycopg'
+    assert parsed.username == 'postgres.project'
+    assert parsed.password == 'test@8927'
+    assert parsed.host == 'aws-0-ap-southeast-1.pooler.supabase.com'
+    assert parsed.port == 5432
+    assert parsed.database == 'postgres'
+    assert parsed.query['sslmode'] == 'require'

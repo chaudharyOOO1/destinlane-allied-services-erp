@@ -1,5 +1,6 @@
 import json
 from typing import List, Union
+from urllib.parse import quote, unquote, urlsplit
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -54,6 +55,17 @@ class Settings(BaseSettings):
     def sync_database_url(self) -> str:
         url = self.DATABASE_URL
         if url:
+            # SQLAlchemy treats an unescaped @ in a password as the start of
+            # the hostname. Normalize only userinfo, preserving host and options.
+            parsed = urlsplit(url.strip())
+            if "@" in parsed.netloc:
+                userinfo, hostport = parsed.netloc.rsplit("@", 1)
+                username, separator, password = userinfo.partition(":")
+                userinfo = quote(unquote(username), safe="")
+                if separator:
+                    userinfo += ":" + quote(unquote(password), safe="")
+                parsed = parsed._replace(netloc=f"{userinfo}@{hostport}")
+            url = parsed.geturl()
             if url.startswith("postgres://"):
                 url = "postgresql://" + url[len("postgres://"):]
             if url.startswith("postgresql://"):
