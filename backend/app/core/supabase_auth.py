@@ -35,6 +35,8 @@ def provision_supabase_password_user(*, email: str, password: str) -> dict[str, 
     except urllib.error.HTTPError as exc:
         if exc.code != 422:
             return None
+    except (urllib.error.URLError, TimeoutError, ValueError):
+        return None
 
     list_request = urllib.request.Request(
         f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/admin/users?per_page=100&page=1",

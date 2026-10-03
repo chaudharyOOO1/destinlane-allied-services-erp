@@ -162,7 +162,7 @@ export default function Dashboard() {
           <div>
             <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono mb-1">
               <Radio className="w-3.5 h-3.5 animate-pulse" />
-              <span>NORTHLANE ALLIED SERVICES // OPERATIONS</span>
+              <span>DESTINLANE ALLIED SERVICES // OPERATIONS</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
               Operations Dashboard

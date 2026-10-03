@@ -84,7 +84,7 @@ export default function MainLayout({ children, onQuickAction = null }) {
               <Shield className="w-[18px] h-[18px]" />
             </div>
             <div className="hidden sm:block leading-tight">
-              <div className="text-[15px] font-semibold tracking-[-0.02em] text-slate-950">NORTHLANE</div>
+              <div className="text-[15px] font-semibold tracking-[-0.02em] text-slate-950">DESTINLANE</div>
               <div className="text-[9px] font-medium tracking-[0.16em] text-slate-400 uppercase">Allied Services ERP</div>
             </div>
           </button>

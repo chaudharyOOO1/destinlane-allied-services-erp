@@ -124,6 +124,22 @@ def test_email_recovery_does_not_change_erp_password_when_provider_fails(client,
     assert http.post('/api/v1/auth/login', json={'login_id': 'ADMIN-001', 'password': 'test-password-before'}).status_code == 200
 
 
+@pytest.mark.parametrize('provider_success', [True, False])
+def test_self_password_change_synchronizes_provider_before_local_password(client, monkeypatch, provider_success):
+    from app.api.v1.endpoints import auth
+    http, _ = client
+    monkeypatch.setattr(settings, 'SUPABASE_URL', 'https://example.supabase.co')
+    monkeypatch.setattr(settings, 'SUPABASE_SERVICE_ROLE_KEY', 'test-service-key')
+    calls = []
+    monkeypatch.setattr(auth, 'provision_supabase_password_user', lambda **kw: calls.append(kw) or ({'id': 'test-id'} if provider_success else None))
+    token = http.post('/api/v1/auth/login', json={'login_id': 'ADMIN-001', 'password': 'test-password-before'}).json()['access_token']
+    response = http.post('/api/v1/auth/change-password', headers={'Authorization': f'Bearer {token}'}, json={'current_password': 'test-password-before', 'new_password': 'test-password-after'})
+    assert response.status_code == (200 if provider_success else 502)
+    assert calls == [{'email': 'admin@destinlane.in', 'password': 'test-password-after'}]
+    working_password = 'test-password-after' if provider_success else 'test-password-before'
+    assert http.post('/api/v1/auth/login', json={'login_id': 'ADMIN-001', 'password': working_password}).status_code == 200
+
+
 @pytest.mark.parametrize('path,method,expected', [
     ('/api/v1/auth/me', 'GET', None),
     ('/api/v1/erp/employees', 'GET', 'employees.view'),

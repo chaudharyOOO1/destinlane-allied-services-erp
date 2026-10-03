@@ -10,7 +10,7 @@ from app.api.deps import get_current_active_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import create_access_token
-from app.core.supabase_auth import get_recovery_user, update_recovery_password
+from app.core.supabase_auth import get_recovery_user, update_recovery_password, provision_supabase_password_user
 from app.crud.crud_user import user as crud_user
 from app.models.enums import UserRole
 from app.models.user import User
@@ -139,6 +139,11 @@ def admin_recover_password(payload: AdminRecoveryRequest, db: Session = Depends(
 def change_password(payload: ChangePasswordRequest, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     if not crud_user.authenticate(db, login_id=current_user.login_id or current_user.email, password=payload.current_password):
         raise HTTPException(status_code=400, detail='Current password is incorrect.')
+    if len(payload.new_password.encode('utf-8')) > 72:
+        raise HTTPException(status_code=400, detail='Password must be at most 72 UTF-8 bytes.')
+    if settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY:
+        if not provision_supabase_password_user(email=current_user.email, password=payload.new_password):
+            raise HTTPException(status_code=502, detail='Password synchronization failed. Please retry.')
     return crud_user.update(db, db_obj=current_user, obj_in={
         'password': payload.new_password,
         'password_initialized_at': datetime.now(timezone.utc),
