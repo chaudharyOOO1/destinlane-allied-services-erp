@@ -3,7 +3,7 @@ import re
 from datetime import date, datetime, timezone
 from uuid import uuid4
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from app.api.deps import require_admin, require_owner
 from app.api.v1.endpoints.company import require_company_staff, assert_company_editable
@@ -75,8 +75,13 @@ async def upload_document(document_type: str = Form(...), title: str = Form(''),
     except Exception as exc:
         db.rollback()
         try:
-            remove_failed_upload(path)
-        except HTTPException:
+            # A commit can succeed before a refresh/network error reaches us.
+            # Delete only after confirming no metadata record was committed.
+            # If the database cannot answer, retain the private object safely.
+            persisted = db.query(CompanyDocument).filter(CompanyDocument.storage_path == path).first()
+            if not persisted:
+                remove_failed_upload(path)
+        except (HTTPException, SQLAlchemyError):
             pass
         if isinstance(exc, IntegrityError):
             raise HTTPException(409, 'This document is already stored.') from None

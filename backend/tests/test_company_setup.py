@@ -150,3 +150,24 @@ def test_inflight_staff_upload_is_rejected_if_owner_submits_profile(company_clie
     assert len(cleaned) == 1
     with sessions() as db:
         assert db.query(CompanyDocument).count() == 0
+
+
+def test_refresh_failure_after_commit_never_deletes_committed_legal_file(company_client, monkeypatch):
+    from sqlalchemy.exc import OperationalError
+    from sqlalchemy.orm import Session
+    from app.api.v1.endpoints import company_documents as docs
+    http, sessions, headers = company_client
+    cleaned = []
+    monkeypatch.setattr(docs, 'upload_company_file', lambda *args: None)
+    monkeypatch.setattr(docs, 'remove_failed_upload', lambda path: cleaned.append(path))
+    original_refresh = Session.refresh
+    def fail_document_refresh(self, instance, *args, **kwargs):
+        if isinstance(instance, CompanyDocument):
+            raise OperationalError('refresh', {}, Exception('connection refused'))
+        return original_refresh(self, instance, *args, **kwargs)
+    monkeypatch.setattr(Session, 'refresh', fail_document_refresh)
+    response = http.post('/api/v1/erp/company/documents', headers=headers, data={'document_type':'COI'}, files={'file':('test.pdf',b'%PDF-1.4\ncompany-test','application/pdf')})
+    assert response.status_code == 503
+    assert cleaned == []
+    with sessions() as db:
+        assert db.query(CompanyDocument).count() == 1
