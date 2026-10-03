@@ -83,6 +83,47 @@ def test_malformed_password_hash_is_rejected():
     assert verify_password('test-password', None) is False
 
 
+@pytest.mark.parametrize('identity,active,expected', [
+    (None, True, 401),
+    ({'email': 'different@example.com', 'email_confirmed_at': 'confirmed'}, True, 403),
+    ({'email': 'admin@destinlane.in'}, True, 401),
+    ({'email': 'admin@destinlane.in', 'email_confirmed_at': 'confirmed'}, False, 403),
+    ({'email': 'ADMIN@DESTINLANE.IN', 'email_confirmed_at': 'confirmed'}, True, 200),
+])
+def test_email_recovery_binds_verified_identity_to_active_account(client, monkeypatch, identity, active, expected):
+    from app.api.v1.endpoints import auth
+    http, sessions = client
+    monkeypatch.setattr(settings, 'SUPABASE_URL', 'https://example.supabase.co')
+    monkeypatch.setattr(settings, 'SUPABASE_SERVICE_ROLE_KEY', 'test-service-key')
+    monkeypatch.setattr(auth, 'get_recovery_user', lambda token: identity)
+    updates = []
+    monkeypatch.setattr(auth, 'update_recovery_password', lambda **kw: updates.append(kw) or True)
+    with sessions() as db:
+        db.query(User).first().is_active = active
+        db.commit()
+    response = http.post('/api/v1/auth/reset-password', json={'access_token': 'test-recovery-access-token', 'new_password': 'test-recovered-password'})
+    assert response.status_code == expected
+    assert bool(updates) == (expected == 200)
+    with sessions() as db:
+        account = db.query(User).first()
+        assert verify_password('test-recovered-password', account.hashed_password) == (expected == 200)
+    if expected == 200:
+        assert http.post('/api/v1/auth/login', json={'login_id': 'ADMIN-001', 'password': 'test-recovered-password'}).status_code == 200
+        assert http.post('/api/v1/auth/login', json={'login_id': 'ADMIN-001', 'password': 'test-password-before'}).status_code == 401
+
+
+def test_email_recovery_does_not_change_erp_password_when_provider_fails(client, monkeypatch):
+    from app.api.v1.endpoints import auth
+    http, _ = client
+    monkeypatch.setattr(settings, 'SUPABASE_URL', 'https://example.supabase.co')
+    monkeypatch.setattr(settings, 'SUPABASE_SERVICE_ROLE_KEY', 'test-service-key')
+    monkeypatch.setattr(auth, 'get_recovery_user', lambda token: {'email': 'admin@destinlane.in', 'email_confirmed_at': 'confirmed'})
+    monkeypatch.setattr(auth, 'update_recovery_password', lambda **kw: False)
+    response = http.post('/api/v1/auth/reset-password', json={'access_token': 'test-recovery-access-token', 'new_password': 'test-recovered-password'})
+    assert response.status_code == 502
+    assert http.post('/api/v1/auth/login', json={'login_id': 'ADMIN-001', 'password': 'test-password-before'}).status_code == 200
+
+
 @pytest.mark.parametrize('path,method,expected', [
     ('/api/v1/auth/me', 'GET', None),
     ('/api/v1/erp/employees', 'GET', 'employees.view'),

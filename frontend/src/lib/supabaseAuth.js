@@ -1,6 +1,23 @@
-const SUPABASE_URL=import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY=import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-function headers(accessToken){return {apikey:SUPABASE_PUBLISHABLE_KEY,'Content-Type':'application/json',...(accessToken?{Authorization:'Bearer '+accessToken}:{})};}
-function assertConfig(){if(!SUPABASE_URL||!SUPABASE_PUBLISHABLE_KEY)throw new Error('Supabase browser configuration is missing.');}
-export async function requestPasswordRecovery(email,redirectTo){assertConfig();const response=await fetch(SUPABASE_URL+'/auth/v1/recover',{method:'POST',headers:headers(),body:JSON.stringify({email,redirect_to:redirectTo})});if(!response.ok){let detail='Unable to start password recovery.';try{const data=await response.json();detail=data?.msg||data?.message||detail;}catch{}throw new Error(detail);}}
-export async function updateRecoveredPassword(accessToken,password){assertConfig();const response=await fetch(SUPABASE_URL+'/auth/v1/user',{method:'PUT',headers:headers(accessToken),body:JSON.stringify({password})});if(!response.ok){let detail='Unable to update the password.';try{const data=await response.json();detail=data?.msg||data?.message||detail;}catch{}throw new Error(detail);}}
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+export async function requestPasswordRecovery(email, redirectTo) {
+  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+    throw new Error('Email recovery configuration is missing. Contact your administrator.');
+  }
+  const url = new URL('/auth/v1/recover', SUPABASE_URL);
+  url.searchParams.set('redirect_to', redirectTo);
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!response.ok) {
+    let detail = 'Unable to start password recovery.';
+    try {
+      const data = await response.json();
+      detail = data?.msg || data?.message || detail;
+    } catch { /* Keep the safe default when the response is not JSON. */ }
+    throw new Error(detail);
+  }
+}

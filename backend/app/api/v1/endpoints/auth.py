@@ -4,11 +4,13 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.api.deps import get_current_active_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import create_access_token
+from app.core.supabase_auth import get_recovery_user, update_recovery_password
 from app.crud.crud_user import user as crud_user
 from app.models.enums import UserRole
 from app.models.user import User
@@ -17,6 +19,34 @@ from app.schemas.user import UserResponse
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+class EmailRecoveryRequest(BaseModel):
+    access_token: str = Field(min_length=16, max_length=8192)
+    new_password: str = Field(min_length=12, max_length=72)
+
+
+@router.post('/reset-password')
+def reset_password(payload: EmailRecoveryRequest, db: Session = Depends(get_db)):
+    if not settings.SUPABASE_URL or not settings.SUPABASE_SERVICE_ROLE_KEY:
+        raise HTTPException(status_code=503, detail='Email password recovery is not configured. Contact your administrator.')
+    if len(payload.new_password.encode('utf-8')) > 72:
+        raise HTTPException(status_code=400, detail='Password must be at most 72 UTF-8 bytes.')
+    identity = get_recovery_user(payload.access_token)
+    if not identity or not identity.get('email') or not identity.get('email_confirmed_at'):
+        raise HTTPException(status_code=401, detail='This password reset link is invalid or has expired.')
+    account = db.query(User).filter(func.lower(User.email) == str(identity['email']).lower(), User.is_active.is_(True)).first()
+    if not account:
+        raise HTTPException(status_code=403, detail='Password recovery is unavailable for this ERP account.')
+    # Verify the token with Supabase, and bind it to an active ERP account before
+    # changing either password. Never accept an account ID/email from the client.
+    if not update_recovery_password(access_token=payload.access_token, password=payload.new_password):
+        raise HTTPException(status_code=502, detail='Password recovery could not be completed. Please retry.')
+    crud_user.update(db, db_obj=account, obj_in={
+        'password': payload.new_password,
+        'password_initialized_at': datetime.now(timezone.utc),
+    })
+    return {'success': True, 'message': 'Your ERP password has been updated. You can now sign in.'}
 
 
 class AdminSetupRequest(BaseModel):

@@ -24,7 +24,8 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    if (error?.response?.status === 401 && !window.location.pathname.startsWith('/login')) {
+    const publicAuthRequest = ['/auth/login', '/auth/reset-password', '/auth/admin-recover-password', '/auth/setup-admin'].includes(error?.config?.url);
+    if (error?.response?.status === 401 && !publicAuthRequest && !window.location.pathname.startsWith('/login')) {
       localStorage.removeItem(TOKEN_KEY);
       window.location.assign('/login');
     }

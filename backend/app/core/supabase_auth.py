@@ -83,6 +83,40 @@ def verify_supabase_password(*, identifier: str, password: str) -> dict[str, Any
         return None
 
 
+def get_recovery_user(access_token: str) -> dict[str, Any] | None:
+    headers = _auth_headers()
+    if not headers:
+        return None
+    request = urllib.request.Request(
+        f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/user",
+        headers={**headers, "Authorization": f"Bearer {access_token}"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=8) as response:
+            return json.load(response)
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError):
+        return None
+
+
+def update_recovery_password(*, access_token: str, password: str) -> bool:
+    headers = _auth_headers()
+    if not headers:
+        return False
+    request = urllib.request.Request(
+        f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/user",
+        data=json.dumps({"password": password}).encode("utf-8"),
+        headers={**headers, "Authorization": f"Bearer {access_token}"},
+        method="PUT",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=8) as response:
+            response.read()
+        return True
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError):
+        return False
+
+
 def get_supabase_user_profile(identifier: str) -> dict[str, Any] | None:
     headers = _auth_headers()
     if not headers:
