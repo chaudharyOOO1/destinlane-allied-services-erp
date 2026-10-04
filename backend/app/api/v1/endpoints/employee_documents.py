@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_hr_or_admin
+from app.api.deps import require_employee_office
 from app.api.permissions import has_permission
 from app.core.business_time import business_date
 from app.services.employee_workflow import employee as joining_employee,audit,refresh_compliance
@@ -88,7 +88,7 @@ def _employee_or_404(employee_id: UUID, db: Session):
     return row
 
 @router.get("/{employee_id}/documents")
-def list_documents(employee_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
+def list_documents(employee_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_employee_office)):
     _employee_or_404(employee_id, db)
     rows = db.execute(
         text("""
@@ -114,7 +114,7 @@ async def upload_document(
     issue_date: str | None = Form(None),
     expiry_date: str | None = Form(None),
     db: Session = Depends(get_db),
-    current_user=Depends(require_hr_or_admin),
+    current_user=Depends(require_employee_office),
 ):
     employee = joining_employee(db,employee_id,True)
     if employee['status'].upper() in {'PENDING_APPROVAL','TERMINATED'}:
@@ -232,7 +232,7 @@ async def upload_document(
     }
 
 @router.post("/{employee_id}/documents/{document_id}/sign")
-def sign_document(employee_id: UUID, document_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
+def sign_document(employee_id: UUID, document_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_employee_office)):
     row = db.execute(
         text("select storage_path from employee_documents where id=:doc and employee_id=:employee"),
         {"doc": str(document_id), "employee": str(employee_id)},
@@ -252,7 +252,7 @@ def sign_document(employee_id: UUID, document_id: UUID, db: Session = Depends(ge
     return {"url": f"{base}/storage/v1{signed}", "expires_in": 60}
 
 @router.patch("/{employee_id}/documents/{document_id}/verify")
-def verify_document(employee_id: UUID, document_id: UUID, payload: dict, db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
+def verify_document(employee_id: UUID, document_id: UUID, payload: dict, db: Session = Depends(get_db), current_user=Depends(require_employee_office)):
     if not has_permission(db,current_user,'employees.approve'): raise HTTPException(403,'Employee approval permission is required to verify documents.')
     person=joining_employee(db,employee_id,True)
     if person['status'].upper()=='TERMINATED': raise HTTPException(409,'Terminated employee files are locked.')

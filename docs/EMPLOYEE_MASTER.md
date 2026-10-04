@@ -10,6 +10,8 @@ Intimation requires employee name, father's name, Aadhaar, mobile number, an act
 
 Joining files support partial saves, resumption, version conflict detection and returned corrections. Details include personal and employment information, identity, emergency contact, verified bank/branch/IFSC, nominee, UAN/ESIC, gunman information and uniform issue/EMI. Dates, Aadhaar checksum, PAN, phone and bank formats are validated on the server. Final submission requires an adult employee, required details and valid document uploads. Approved IFSC, bank and branch must match the imported bank master; browser verification flags are never trusted.
 
+Office operators, including Operations and Accounts, can receive explicit Employee access and approval permissions from administrators; their existing default permissions are unchanged. Deployed employee and client accounts cannot access these office records.
+
 Internal submissions snapshot the configured approval chain. Each step is restricted to its assigned approver; the Owner can intervene. Only the last step activates the employee. Return requires remarks and preserves the employee ID. Owner submissions can activate directly after all required documents are verified. Submitted files cannot be edited or have uploads replaced until returned. Approval setup is Owner-only. Inactive or unavailable approvers block progression.
 
 Activation creates a workforce deployment profile without creating an ERP login. Pending joining files cannot be deployed, punch attendance or log into the employee mobile endpoint. Recruitment and older direct workforce/document-write endpoints cannot bypass this workflow.

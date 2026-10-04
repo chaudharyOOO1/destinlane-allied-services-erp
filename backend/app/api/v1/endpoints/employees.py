@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter,Depends,HTTPException,Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from app.api.deps import require_hr_or_admin,require_admin
+from app.api.deps import require_employee_office,require_admin
 from app.core.database import get_db
 from app.core.business_time import business_date
 from app.services.employee_workflow import employee,compliance_reasons,refresh_compliance,audit
@@ -24,12 +24,12 @@ def directory(db,q='',status=None,branch=None,site_id=None,designation=None):
 
 
 @router.get('')
-def list_employees(q:str=Query('',max_length=100),status:str|None=None,branch:str|None=None,site_id:int|None=None,designation:str|None=None,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def list_employees(q:str=Query('',max_length=100),status:str|None=None,branch:str|None=None,site_id:int|None=None,designation:str|None=None,db:Session=Depends(get_db),user=Depends(require_employee_office)):
     return directory(db,q,status,branch,site_id,designation)
 
 
 @router.get('/options')
-def options(db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def options(db:Session=Depends(get_db),user=Depends(require_employee_office)):
     from app.models.company import CompanySettings
     company=db.get(CompanySettings,1)
     clients=[dict(x) for x in db.execute(text('select id,company_name from clients where is_active=true order by company_name')).mappings()]
@@ -39,19 +39,19 @@ def options(db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
     if user.role.value=='OWNER':
         from app.models.user import User
         from app.api.permissions import has_permission
-        approvers=[{'id':u.id,'name':u.full_name,'role':u.role.value} for u in db.query(User).filter(User.is_active.is_(True)).all() if u.role.value in {'OWNER','SUPER_ADMIN','ADMIN','HR'} and has_permission(db,u,'employees.approve') and has_permission(db,u,'employees.view')]
+        approvers=[{'id':u.id,'name':u.full_name,'role':u.role.value} for u in db.query(User).filter(User.is_active.is_(True)).all() if u.role.value in {'OWNER','SUPER_ADMIN','ADMIN','HR','OPERATIONS','ACCOUNTS'} and has_permission(db,u,'employees.approve') and has_permission(db,u,'employees.view')]
     return {'clients':clients,'sites':sites,'branches':branches,'approvers':approvers}
 
 
 @router.get('/code-check')
-def check_code(code:str=Query(...,max_length=40),db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def check_code(code:str=Query(...,max_length=40),db:Session=Depends(get_db),user=Depends(require_employee_office)):
     import re
     value=code.strip().upper();row=db.execute(text('select id,employee_code,name,status from employees where employee_code=:code'),{'code':value}).mappings().first()
     return {'valid_format':bool(re.fullmatch(r'E-DAS-\d{4,}',value)),'registered':bool(row),'employee':dict(row) if row else None}
 
 
 @router.get('/ifsc-check')
-def check_ifsc(code:str=Query(...,max_length=11),db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def check_ifsc(code:str=Query(...,max_length=11),db:Session=Depends(get_db),user=Depends(require_employee_office)):
     row=db.execute(text('select ifsc_code,bank_name,branch_name from ifsc_master where ifsc_code=:code and approved=true'),{'code':code.strip().upper()}).mappings().first()
     return {'approved':bool(row),'bank':dict(row) if row else None}
 
@@ -70,16 +70,16 @@ def compliance_rows(db,days=60):
 
 
 @router.get('/compliance')
-def compliance(days:int=Query(60,ge=1,le=365),db:Session=Depends(get_db),user=Depends(require_hr_or_admin)): return compliance_rows(db,days)
+def compliance(days:int=Query(60,ge=1,le=365),db:Session=Depends(get_db),user=Depends(require_employee_office)): return compliance_rows(db,days)
 
 
 @router.post('/{employee_id}/compliance-refresh')
-def refresh(employee_id:UUID,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def refresh(employee_id:UUID,db:Session=Depends(get_db),user=Depends(require_employee_office)):
     result=refresh_compliance(db,employee_id);db.commit();return result
 
 
 @router.get('/reports')
-def reports(kind:str=Query('master',pattern='^(master|attendance|compliance)$'),start:date|None=None,end:date|None=None,days:int=Query(60,ge=1,le=365),q:str=Query('',max_length=100),branch:str|None=None,site_id:int|None=None,status:str|None=None,designation:str|None=None,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def reports(kind:str=Query('master',pattern='^(master|attendance|compliance)$'),start:date|None=None,end:date|None=None,days:int=Query(60,ge=1,le=365),q:str=Query('',max_length=100),branch:str|None=None,site_id:int|None=None,status:str|None=None,designation:str|None=None,db:Session=Depends(get_db),user=Depends(require_employee_office)):
     selected=directory(db,q,status,branch,site_id,designation)
     if kind=='master': return selected
     if kind=='compliance':
@@ -93,24 +93,24 @@ def reports(kind:str=Query('master',pattern='^(master|attendance|compliance)$'),
 
 
 @router.get('/reports/export')
-def export(kind:str=Query('master',pattern='^(master|attendance|compliance)$'),format:str=Query('xlsx',pattern='^(xlsx|pdf|csv)$'),start:date|None=None,end:date|None=None,days:int=Query(60,ge=1,le=365),q:str='',branch:str|None=None,site_id:int|None=None,status:str|None=None,designation:str|None=None,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def export(kind:str=Query('master',pattern='^(master|attendance|compliance)$'),format:str=Query('xlsx',pattern='^(xlsx|pdf|csv)$'),start:date|None=None,end:date|None=None,days:int=Query(60,ge=1,le=365),q:str='',branch:str|None=None,site_id:int|None=None,status:str|None=None,designation:str|None=None,db:Session=Depends(get_db),user=Depends(require_employee_office)):
     from app.services.employee_reports import export_report
     rows=reports(kind,start,end,days,q,branch,site_id,status,designation,db,user)
     return export_report(rows,kind,format)
 
 
 @router.get('/{employee_id}/history')
-def history(employee_id:UUID,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def history(employee_id:UUID,db:Session=Depends(get_db),user=Depends(require_employee_office)):
     employee(db,employee_id)
     return [dict(r) for r in db.execute(text('select h.*,u.full_name as changed_by_name from employee_history h left join users u on u.id=h.changed_by where employee_id=:id order by created_at desc,id desc'),{'id':str(employee_id)}).mappings()]
 
 
 @router.post('',status_code=409)
-def legacy_create(user=Depends(require_hr_or_admin)): raise HTTPException(409,'Create an intimation in Employee Creation. Permanent employee ID is issued there.')
+def legacy_create(user=Depends(require_employee_office)): raise HTTPException(409,'Create an intimation in Employee Creation. Permanent employee ID is issued there.')
 
 
 @router.patch('/{employee_id}')
-def legacy_edit(employee_id:UUID,user=Depends(require_hr_or_admin)): raise HTTPException(409,'Use the versioned joining draft. Submitted files must be returned by their approver before changes.')
+def legacy_edit(employee_id:UUID,user=Depends(require_employee_office)): raise HTTPException(409,'Use the versioned joining draft. Submitted files must be returned by their approver before changes.')
 
 
 @router.patch('/{employee_id}/status')

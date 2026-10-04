@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from app.api.deps import require_hr_or_admin, get_current_owner
+from app.api.deps import require_employee_office, get_current_owner
 from app.api.permissions import has_permission
 from app.core.database import get_db
 from app.models.user import User
@@ -20,7 +20,7 @@ def payload(db,eid):
 
 
 @router.post('/intimations',status_code=201)
-def create_intimation(data:dict,db:Session=Depends(get_db),user:User=Depends(require_hr_or_admin)):
+def create_intimation(data:dict,db:Session=Depends(get_db),user:User=Depends(require_employee_office)):
     fields={'name','father_name','aadhaar_no','phone','client_id','branch'}
     if set(data)-fields: raise HTTPException(422,'Intimation accepts name, father name, Aadhaar, phone, client and company branch only.')
     p=clean_profile(data)
@@ -40,24 +40,24 @@ def create_intimation(data:dict,db:Session=Depends(get_db),user:User=Depends(req
 
 @router.get('/intimations')
 @router.get('/joining')
-def list_joining(db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def list_joining(db:Session=Depends(get_db),user=Depends(require_employee_office)):
     rows=db.execute(text("select e.id,e.employee_code,e.name,e.phone,e.branch,e.designation,e.intimation_id,e.status as employee_status,e.client_id,d.intimation_id as intimation_uuid,d.status as joining_status,d.last_saved_at from employee_joining_drafts d join employees e on e.id=d.employee_id order by d.updated_at desc")).mappings().all()
     return [dict(x) for x in rows]
 
 
 @router.post('/intimations/{intimation_id}/create')
-def resume_intimation(intimation_id:UUID,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def resume_intimation(intimation_id:UUID,db:Session=Depends(get_db),user=Depends(require_employee_office)):
     row=db.execute(text('select employee_id from employee_joining_drafts where intimation_id=:id'),{'id':str(intimation_id)}).first()
     if not row: raise HTTPException(404,'Intimation joining file not found.')
     return payload(db,row[0])
 
 
 @router.get('/joining/{employee_id}')
-def get_joining(employee_id:UUID,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)): return payload(db,employee_id)
+def get_joining(employee_id:UUID,db:Session=Depends(get_db),user=Depends(require_employee_office)): return payload(db,employee_id)
 
 
 @router.patch('/joining/{employee_id}')
-def save_joining(employee_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def save_joining(employee_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(require_employee_office)):
     if set(data)-{'version','profile'} or not isinstance(data.get('profile'),dict): raise HTTPException(422,'Provide version and profile.')
     row=employee(db,employee_id,True)
     if data.get('version')!=row['version']: raise HTTPException(409,'This employee file changed. Reopen it before saving.')
@@ -89,7 +89,7 @@ def approval_chain(db):
     result=[]
     for c in rows:
         target=db.get(User,c['approver_user_id'])
-        if not target or not target.is_active or target.role.value not in {'OWNER','SUPER_ADMIN','ADMIN','HR'} or not has_permission(db,target,'employees.approve') or not has_permission(db,target,'employees.view'): raise HTTPException(409,'An assigned joining approver is unavailable. Owner must update the setup.')
+        if not target or not target.is_active or target.role.value not in {'OWNER','SUPER_ADMIN','ADMIN','HR','OPERATIONS','ACCOUNTS'} or not has_permission(db,target,'employees.approve') or not has_permission(db,target,'employees.view'): raise HTTPException(409,'An assigned joining approver is unavailable. Owner must update the setup.')
         result.append({'category_id':c['id'],'assigned_to':target.id,'category_name':c['category_name']})
     return result
 
@@ -100,7 +100,7 @@ def add_request(db,eid,user,chain,index=0):
 
 
 @router.post('/joining/{employee_id}/submit')
-def submit_joining(employee_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def submit_joining(employee_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(require_employee_office)):
     row=employee(db,employee_id,True)
     if data.get('version')!=row['version']: raise HTTPException(409,'Reopen the current employee file before submitting.')
     draft=db.execute(text('select status from employee_joining_drafts where employee_id=:id'),{'id':str(employee_id)}).first()
@@ -116,13 +116,13 @@ def submit_joining(employee_id:UUID,data:dict,db:Session=Depends(get_db),user=De
 
 
 @router.get('/approvals')
-def list_approvals(db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def list_approvals(db:Session=Depends(get_db),user=Depends(require_employee_office)):
     rows=db.execute(text("select ar.*,e.name,e.employee_code from employee_approval_requests ar join employees e on e.id=ar.employee_id where ar.status='PENDING' and (:owner or ar.assigned_to=:user) order by ar.submitted_at"),{'owner':user.role.value=='OWNER','user':user.id}).mappings().all()
     return [dict(r) for r in rows]
 
 
 @router.post('/approvals/{approval_id}/decision')
-def decide(approval_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def decide(approval_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(require_employee_office)):
     # Match document mutations' employee-first lock order; concurrent decisions cannot activate twice.
     target=db.execute(text('select employee_id from employee_approval_requests where id=:id'),{'id':str(approval_id)}).first()
     if not target: raise HTTPException(404,'Approval request not found.')
@@ -153,7 +153,7 @@ def decide(approval_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(re
 
 
 @router.get('/approval-categories')
-def categories(db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+def categories(db:Session=Depends(get_db),user=Depends(require_employee_office)):
     return [dict(x) for x in db.execute(text('select c.*,u.full_name as approver_name from employee_approval_categories c left join users u on u.id=c.approver_user_id order by sequence_order,id')).mappings()]
 
 
@@ -162,7 +162,7 @@ def update_category(category_id:int,data:dict,db:Session=Depends(get_db),user=De
     assigned=data.get('approver_user_id') or None
     if assigned:
         target=db.get(User,assigned)
-        if not target or not target.is_active or target.role.value not in {'OWNER','SUPER_ADMIN','ADMIN','HR'} or not has_permission(db,target,'employees.approve') or not has_permission(db,target,'employees.view'): raise HTTPException(422,'Choose an active approver with Employee view and approve access.')
+        if not target or not target.is_active or target.role.value not in {'OWNER','SUPER_ADMIN','ADMIN','HR','OPERATIONS','ACCOUNTS'} or not has_permission(db,target,'employees.approve') or not has_permission(db,target,'employees.view'): raise HTTPException(422,'Choose an active approver with Employee view and approve access.')
     final=data.get('is_final_approver',False)
     if not isinstance(final,bool): raise HTTPException(422,'Final approver must be true or false.')
     if final: db.execute(text("update employee_approval_categories set is_final_approver=false where task_type='EMPLOYEE_JOINING'"))

@@ -248,3 +248,12 @@ def test_document_validity_requires_private_integrity_and_current_dates():
     assert not rules.doc_valid({**valid,'expiry_date':date.today()-timedelta(days=1)},True)
     assert not rules.doc_valid({**valid,'verification_status':'REJECTED'},True)
     assert not rules.doc_valid({**valid,'expiry_date':None},True)
+
+
+def test_operations_can_receive_employee_permissions_without_default_access():
+    from app.api.permissions import permission_supported,role_allows
+    assert permission_supported('OPERATIONS','employees.create')
+    assert permission_supported('ACCOUNTS','employees.approve')
+    assert not role_allows('OPERATIONS','employees.create')
+    assert not permission_supported('STAFF','employees.view')
+    assert not permission_supported('CLIENT','employees.view')

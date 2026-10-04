@@ -9,7 +9,7 @@ OFFICE = ADMINS + ['HR','OPERATIONS','ACCOUNTS']
 # Page roles reflect the backend master endpoints. Special personal attendance routes
 # are separate from the attendance administration page.
 MODULE_ROLES = {
- 'dashboard':ADMINS+['ACCOUNTS'], 'employees':ADMINS+['HR'], 'recruitment':ADMINS+['HR'],
+ 'dashboard':ADMINS+['ACCOUNTS'], 'employees':OFFICE, 'recruitment':ADMINS+['HR'],
  'staff':OFFICE, 'company':OFFICE, 'user_management':ADMINS,
  'clients':OFFICE+['SUPERVISOR','CLIENT'], 'contracts':OFFICE,
  'sites':ADMINS+['OPERATIONS','SUPERVISOR'], 'rosters':ADMINS+['OPERATIONS','SUPERVISOR'],

@@ -121,3 +121,6 @@ require_admin_or_staff = RoleChecker([UserRole.OWNER,UserRole.SUPER_ADMIN,UserRo
 
 require_management = RoleChecker([UserRole.OWNER,UserRole.SUPER_ADMIN], allow_super_admin=False)
 require_payroll = RoleChecker([UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.ADMIN,UserRole.HR,UserRole.ACCOUNTS])
+
+# Company office users can receive explicit employee permissions; deployed employee logins remain separate.
+require_employee_office = RoleChecker([UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.ADMIN,UserRole.HR,UserRole.OPERATIONS,UserRole.ACCOUNTS])
