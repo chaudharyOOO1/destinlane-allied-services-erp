@@ -10,7 +10,7 @@ from app.models.enums import (
     InvoiceStatus,
 )
 from app.models.user import User
-from app.models.client import Client
+from app.models.client import Client, ClientCodeCounter, ClientStaffAssignment, ClientHistory
 from app.models.site import Site
 from app.models.guard import GuardProfile
 from app.models.roster import ShiftRoster
@@ -38,3 +38,5 @@ __all__ = [
 ]
 
 from app.models.internal_staff import InternalStaff, StaffCodeCounter, StaffHistory, StaffApprovalSettings
+
+from app.models.account_audit import AccountAccessAudit

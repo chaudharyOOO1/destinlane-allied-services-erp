@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_owner
+from app.api.deps import require_management
 from app.core.database import get_db
 
 router = APIRouter()
 
 
 @router.get("/executive-summary")
-def executive_summary(db: Session = Depends(get_db), current_user=Depends(require_owner)):
+def executive_summary(db: Session = Depends(get_db), current_user=Depends(require_management)):
     revenue = float(db.execute(text("select coalesce(sum(total_amount),0) from invoices where status <> 'DRAFT'")).scalar() or 0)
     expenses = float(db.execute(text("select coalesce(sum(amount),0) from expenses")).scalar() or 0)
     payroll = float(db.execute(text("select coalesce(sum(net_pay),0) from salary_records where lifecycle_status in ('CALCULATED','APPROVED','DISBURSED','HELD')")).scalar() or 0)

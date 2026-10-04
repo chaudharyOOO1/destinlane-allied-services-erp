@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_accounts_or_admin, require_hr_or_admin
 from app.core.database import get_db
+from app.api.deps import require_management, require_payroll, require_roles
+from app.models.enums import UserRole
 from app.services.company import company_document_profile
 
 router = APIRouter()
@@ -22,7 +24,7 @@ def _month(value: str) -> date:
 
 
 @router.get("/payroll")
-def list_payroll(month: str | None = None, db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
+def list_payroll(month: str | None = None, db: Session = Depends(get_db), current_user=Depends(require_payroll)):
     q = """select ss.*,e.employee_code,e.name,pr.payroll_month,pr.status payroll_status
       from salary_slips ss join employees e on e.id=ss.employee_id
       join payroll_runs pr on pr.id=ss.payroll_run_id"""
@@ -35,7 +37,7 @@ def list_payroll(month: str | None = None, db: Session = Depends(get_db), curren
 
 
 @router.post("/payroll/calculate")
-def calculate_payroll(payload: dict, db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
+def calculate_payroll(payload: dict, db: Session = Depends(get_db), current_user=Depends(require_payroll)):
     payroll_month = _month(str(payload.get("month", "")))
     last_day = monthrange(payroll_month.year, payroll_month.month)[1]
     month_end = date(payroll_month.year, payroll_month.month, last_day)
@@ -116,7 +118,7 @@ def calculate_payroll(payload: dict, db: Session = Depends(get_db), current_user
 
 
 @router.post("/payroll/{slip_id}/hold")
-def hold_salary(slip_id: int, payload: dict, db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
+def hold_salary(slip_id: int, payload: dict, db: Session = Depends(get_db), current_user=Depends(require_payroll)):
     reason = str(payload.get("reason") or "").strip()
     audit_note = str(payload.get("audit_note") or "").strip()
     if reason not in {"Missing Police Verification","Absconding","Pending Uniform Cost","Manual Flag"}:
@@ -133,7 +135,7 @@ def hold_salary(slip_id: int, payload: dict, db: Session = Depends(get_db), curr
 
 
 @router.get("/payroll/slips/{slip_id}/pdf")
-def salary_slip_pdf(slip_id: int, db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
+def salary_slip_pdf(slip_id: int, db: Session = Depends(get_db), current_user=Depends(require_payroll)):
     row = db.execute(text("""select ss.*,e.employee_code,e.name,e.category,pr.payroll_month
       from salary_slips ss join employees e on e.id=ss.employee_id join payroll_runs pr on pr.id=ss.payroll_run_id
       where ss.id=:id"""), {"id":slip_id}).mappings().first()

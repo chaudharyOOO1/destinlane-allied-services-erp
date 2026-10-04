@@ -45,6 +45,8 @@ def reset_password(payload: EmailRecoveryRequest, db: Session = Depends(get_db))
     crud_user.update(db, db_obj=account, obj_in={
         'password': payload.new_password,
         'password_initialized_at': datetime.now(timezone.utc),
+        'must_change_password': False,
+        'session_version': account.session_version + 1,
     })
     return {'success': True, 'message': 'Your ERP password has been updated. You can now sign in.'}
 
@@ -65,7 +67,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     account = crud_user.authenticate(db, login_id=payload.login_id, password=payload.password)
     if not account or not account.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid Login ID or password', headers={'WWW-Authenticate': 'Bearer'})
-    token = create_access_token(account.id, role=account.role)
+    token = create_access_token(account.id, role=account.role, session_version=account.session_version)
     return {'access_token': token, 'token_type': 'bearer', 'user': account}
 
 
@@ -101,6 +103,8 @@ def setup_admin(payload: AdminSetupRequest, db: Session = Depends(get_db)):
         'is_active': True,
         'is_superuser': True,
         'password_initialized_at': datetime.now(timezone.utc),
+        'must_change_password': False,
+        'session_version': account.session_version + 1,
     })
     return updated
 
@@ -124,6 +128,8 @@ def admin_recover_password(payload: AdminRecoveryRequest, db: Session = Depends(
         crud_user.update(db, db_obj=account, obj_in={
             'password': payload.new_password,
             'password_initialized_at': datetime.now(timezone.utc),
+        'must_change_password': False,
+        'session_version': account.session_version + 1,
         })
     except ValueError as exc:
         db.rollback()
@@ -139,6 +145,8 @@ def admin_recover_password(payload: AdminRecoveryRequest, db: Session = Depends(
 def change_password(payload: ChangePasswordRequest, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     if not crud_user.authenticate(db, login_id=current_user.login_id or current_user.email, password=payload.current_password):
         raise HTTPException(status_code=400, detail='Current password is incorrect.')
+    if payload.new_password == payload.current_password:
+        raise HTTPException(400,'Choose a new password different from your current password.')
     if len(payload.new_password.encode('utf-8')) > 72:
         raise HTTPException(status_code=400, detail='Password must be at most 72 UTF-8 bytes.')
     if settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY:
@@ -147,4 +155,6 @@ def change_password(payload: ChangePasswordRequest, current_user: User = Depends
     return crud_user.update(db, db_obj=current_user, obj_in={
         'password': payload.new_password,
         'password_initialized_at': datetime.now(timezone.utc),
+        'must_change_password': False,
+        'session_version': current_user.session_version + 1,
     })

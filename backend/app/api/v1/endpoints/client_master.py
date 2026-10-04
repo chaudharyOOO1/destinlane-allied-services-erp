@@ -1,124 +1,160 @@
-import re
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import text
+from datetime import date,datetime,timezone
+from fastapi import APIRouter,Depends,HTTPException
+from sqlalchemy import update,func,text
 from sqlalchemy.orm import Session
-from app.api.deps import require_admin, get_current_active_user
+from sqlalchemy.exc import IntegrityError
+from app.api.deps import get_current_active_user,require_admin
 from app.core.database import get_db
+from app.models.client import Client,ClientCodeCounter,ClientStaffAssignment,ClientHistory
+from app.models.internal_staff import InternalStaff
+from app.models.company import CompanySettings
+from app.models.user import User
+from app.models.site import Site
+from app.models.enums import UserRole
+from app.schemas.client_master import ClientProfile,ClientUpdate
 
 router=APIRouter()
-READ_ROLES={"OWNER","SUPER_ADMIN","ADMIN","HR","OPERATIONS","ACCOUNTS","SUPERVISOR","CLIENT"}
-GSTIN_RE=re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$")
+READ_ROLES={UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.ADMIN,UserRole.HR,UserRole.OPERATIONS,UserRole.ACCOUNTS,UserRole.SUPERVISOR,UserRole.CLIENT}
 
-def _role(user):
-    return user.role.value if hasattr(user.role,"value") else str(user.role)
 
-def _assert_read_access(user):
-    if _role(user) not in READ_ROLES and not user.is_superuser:
-        raise HTTPException(403,"You do not have permission to view client records.")
+def reader(user=Depends(get_current_active_user)):
+    if user.role not in READ_ROLES:raise HTTPException(403,'Client records require authorized business access.')
+    return user
 
-def _validate_gstin(payload):
-    gstin=(payload.get("gstin") or payload.get("gst_number") or "").strip().upper()
-    if not gstin or not GSTIN_RE.fullmatch(gstin):
-        raise HTTPException(422,"GSTIN must be a valid 15-character GSTIN.")
-    return gstin
 
-@router.get("")
-def list_clients(db:Session=Depends(get_db),current_user=Depends(get_current_active_user)):
-    _assert_read_access(current_user)
-    rows=db.execute(text("""
-      select c.*,
-        coalesce(string_agg(e.name, ', ' order by e.name) filter (where cfo.is_active=true),'') as field_officers,
-        count(distinct s.id) as site_count,
-        count(distinct cc.id) filter (where cc.status='ACTIVE') as active_contract_count,
-        min(cc.contract_end_date) filter (where cc.status in ('ACTIVE','RENEWED')) as nearest_contract_end,
-        case
-          when min(cc.contract_end_date) filter (where cc.status in ('ACTIVE','RENEWED')) < current_date then 'EXPIRED'
-          when min(cc.contract_end_date) filter (where cc.status in ('ACTIVE','RENEWED')) <= current_date + interval '30 days' then 'EXPIRING_30'
-          when min(cc.contract_end_date) filter (where cc.status in ('ACTIVE','RENEWED')) <= current_date + interval '60 days' then 'EXPIRING_60'
-          else 'NORMAL'
-        end as renewal_status
-      from clients c
-      left join client_field_officers cfo on cfo.client_id=c.id
-      left join employees e on e.id=cfo.employee_id
-      left join sites s on s.client_id=c.id and s.is_active=true
-      left join client_contracts cc on cc.client_id=c.id
-      group by c.id order by c.created_at desc
-    """)).mappings().all()
-    return [dict(r) for r in rows]
+def scoped_query(db,user):
+    query=db.query(Client)
+    return query.filter(Client.user_id==user.id) if user.role==UserRole.CLIENT else query
 
-@router.get("/{client_id}")
-def get_client(client_id:int,db:Session=Depends(get_db),current_user=Depends(get_current_active_user)):
-    _assert_read_access(current_user)
-    row=db.execute(text("""
-      select c.*,
-        coalesce(string_agg(distinct e.name, ', ' order by e.name) filter (where cfo.is_active=true),'') as field_officers,
-        count(distinct s.id) filter (where s.is_active=true) as site_count,
-        min(cc.contract_end_date) filter (where cc.status in ('ACTIVE','RENEWED')) as nearest_contract_end
-      from clients c
-      left join client_field_officers cfo on cfo.client_id=c.id
-      left join employees e on e.id=cfo.employee_id
-      left join sites s on s.client_id=c.id
-      left join client_contracts cc on cc.client_id=c.id
-      where c.id=:id group by c.id
-    """),{"id":client_id}).mappings().first()
-    if not row: raise HTTPException(404,"Client not found")
-    return dict(row)
 
-@router.get("/{client_id}/field-officers")
-def get_client_field_officers(client_id:int,db:Session=Depends(get_db),current_user=Depends(get_current_active_user)):
-    _assert_read_access(current_user)
-    rows=db.execute(text("""select e.id,e.employee_code,e.name,e.designation,e.category,e.phone,cfo.assigned_at
-      from client_field_officers cfo join employees e on e.id=cfo.employee_id
-      where cfo.client_id=:client_id and cfo.is_active=true order by e.name"""),{"client_id":client_id}).mappings().all()
-    return [dict(r) for r in rows]
+def get_record(db,user,client_id,lock=False):
+    query=scoped_query(db,user).filter(Client.id==client_id)
+    row=(query.with_for_update() if lock else query).first()
+    if not row:raise HTTPException(404,'Client not found.')
+    return row
 
-@router.post("",status_code=201)
-def create_client(payload:dict,db:Session=Depends(get_db),current_user=Depends(require_admin)):
-    if not payload.get("company_name"): raise HTTPException(422,"Missing required fields: company_name")
-    gstin=_validate_gstin(payload)
-    region=payload.get("branch_region")
-    if region and region not in {"UTTARAKHAND","UTTAR_PRADESH","DELHI_NCR"}:
-        raise HTTPException(422,"branch_region must be UTTARAKHAND, UTTAR_PRADESH or DELHI_NCR")
-    allowed=["client_code","company_name","registration_no","gst_number","gstin","billing_address","branch","gst_region","branch_region","billing_cycle","contact_person","contact_email","contact_phone","credit_terms_days","contract_start_date","contract_end_date","is_active"]
-    data={k:payload[k] for k in allowed if k in payload}
-    data["gstin"]=gstin; data["gst_number"]=gstin
-    data.setdefault("credit_terms_days",30); data.setdefault("is_active",True)
-    officer_ids=payload.get("field_officer_ids") or []
+
+def officers(db,client_id):
+    return [{'id':s.id,'staff_code':s.staff_code,'name':s.name,'designation':s.profile.get('designation',''),'branch':s.profile.get('branch',''),'status':s.status} for s in db.query(InternalStaff).join(ClientStaffAssignment,ClientStaffAssignment.staff_id==InternalStaff.id).filter(ClientStaffAssignment.client_id==client_id,ClientStaffAssignment.is_active.is_(True)).order_by(InternalStaff.name).all()]
+
+
+def response(db,row,counts=True):
+    profile={**(row.profile or {}),'company_name':row.company_name,'gstin':row.gstin or row.gst_number or '',
+             'billing_address':row.billing_address,'contact_person':row.contact_person,'contact_email':row.contact_email,
+             'contact_phone':row.contact_phone,'branch':row.branch or '', 'branch_region':row.branch_region or '',
+             'credit_terms_days':row.credit_terms_days,'portal_user_id':row.user_id,'is_active':row.is_active}
+    assigned=officers(db,row.id);profile['field_officer_ids']=[s['id'] for s in assigned]
+    result={'id':row.id,'client_code':row.client_code,'version':row.version,'profile':profile,**profile,
+            'field_officers':', '.join(s['name'] for s in assigned),'assigned_staff':assigned}
+    if counts:
+        result['site_count']=db.query(Site).filter_by(client_id=row.id,is_active=True).count()
+        contract=db.execute(text("select count(*) as total,min(contract_end_date) as expiry from client_contracts where client_id=:id and status in ('ACTIVE','RENEWED')"),{'id':row.id}).mappings().one()
+        expiry=contract['expiry']
+        if isinstance(expiry,str):expiry=date.fromisoformat(expiry)
+        days=(expiry-date.today()).days if expiry else None
+        result.update(active_contract_count=contract['total'],nearest_contract_end=expiry,renewal_status='EXPIRED' if days is not None and days<0 else 'EXPIRING_30' if days is not None and days<=30 else 'EXPIRING_60' if days is not None and days<=60 else 'NORMAL')
+    return result
+
+
+def eligible(staff):
+    return staff.status=='ACTIVE' and (staff.profile.get('management_level') in {'UPPER_MANAGEMENT','MANAGEMENT','BRANCH_HEAD','FIELD_OFFICER'} or staff.profile.get('portal_role') in {'OWNER','SUPER_ADMIN','ADMIN','OPERATIONS','SUPERVISOR'})
+
+
+def validate_links(db,profile,row=None):
+    if profile.branch and (not row or row.branch!=profile.branch):
+        company=db.get(CompanySettings,1)
+        if not company or not any(b.get('code')==profile.branch and b.get('is_active',True) for b in company.profile.get('branches',[])):
+            raise HTTPException(422,'Choose an active branch from Company Profile & Docs.')
+    for staff_id in profile.field_officer_ids:
+        staff=db.get(InternalStaff,staff_id)
+        if not staff or not eligible(staff):raise HTTPException(422,'Field officers must be active operations or management staff from Staff Master.')
+        region=staff.profile.get('region','')
+        if region and region not in {'ALL_REGIONS',profile.branch_region}:raise HTTPException(422,'Assigned staff region does not match the client region.')
+        branch=staff.profile.get('branch','')
+        if branch and profile.branch and branch!=profile.branch:raise HTTPException(422,'Assigned staff branch does not match the client branch.')
+    if profile.portal_user_id:
+        account=db.get(User,profile.portal_user_id)
+        if not account or not account.is_active or account.role!=UserRole.CLIENT:raise HTTPException(422,'Client portal access requires an active CLIENT account.')
+        linked=db.query(Client).filter(Client.user_id==profile.portal_user_id)
+        if row:linked=linked.filter(Client.id!=row.id)
+        if linked.first():raise HTTPException(409,'This portal account is already assigned to another client.')
+    gst=db.query(Client).filter(func.upper(Client.gstin)==profile.gstin)
+    if row:gst=gst.filter(Client.id!=row.id)
+    if gst.first():raise HTTPException(409,'A client with this GSTIN already exists.')
+
+
+def save_values(row,profile):
+    values=profile.model_dump(mode='json')
+    for key in ['company_name','gstin','billing_address','contact_person','contact_email','contact_phone','branch','branch_region','credit_terms_days','is_active','registration_no','billing_cycle']:
+        setattr(row,key,values[key])
+    row.contract_start_date=profile.contract_start_date;row.contract_end_date=profile.contract_end_date
+    row.gst_number=profile.gstin;row.user_id=profile.portal_user_id;row.profile=values
+    row.updated_at=datetime.now(timezone.utc)
+
+
+def assign(db,row,ids):
+    db.query(ClientStaffAssignment).filter_by(client_id=row.id).update({'is_active':False})
+    for staff_id in ids:
+        existing=db.query(ClientStaffAssignment).filter_by(client_id=row.id,staff_id=staff_id).first()
+        if existing:existing.is_active=True
+        else:db.add(ClientStaffAssignment(client_id=row.id,staff_id=staff_id,is_active=True))
+    db.flush()
+
+
+def audit(db,row,user,action):
+    db.add(ClientHistory(client_id=row.id,changed_by=user.id,action=action,snapshot={'client_code':row.client_code,'version':row.version,'profile':row.profile}))
+
+
+@router.get('')
+def list_clients(db:Session=Depends(get_db),user=Depends(reader)):
+    return [response(db,row) for row in scoped_query(db,user).order_by(Client.id.desc()).all()]
+
+
+@router.get('/options')
+def options(db:Session=Depends(get_db),user=Depends(reader)):
+    if user.role==UserRole.CLIENT:raise HTTPException(403,'Internal client setup only.')
+    company=db.get(CompanySettings,1)
+    branches=company.profile.get('branches',[]) if company else []
+    staff=db.query(InternalStaff).filter_by(status='ACTIVE').order_by(InternalStaff.name).all()
+    accounts=db.query(User).filter_by(role=UserRole.CLIENT,is_active=True).all() if user.role in {UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.ADMIN} else []
+    return {'branches':[{'code':b['code'],'name':b['name']} for b in branches if b.get('is_active',True)],
+            'staff':[{'id':s.id,'name':s.name,'staff_code':s.staff_code,'region':s.profile.get('region',''),'branch':s.profile.get('branch','')} for s in staff if eligible(s)],
+            'portal_accounts':[{'id':u.id,'name':u.full_name,'login_id':u.login_id} for u in accounts]}
+
+
+@router.get('/{client_id}')
+def get_client(client_id:int,db:Session=Depends(get_db),user=Depends(reader)):
+    return response(db,get_record(db,user,client_id))
+
+
+@router.get('/{client_id}/field-officers')
+def get_field_officers(client_id:int,db:Session=Depends(get_db),user=Depends(reader)):
+    get_record(db,user,client_id)
+    return officers(db,client_id)
+
+
+@router.post('',status_code=201)
+def create_client(profile:ClientProfile,db:Session=Depends(get_db),user=Depends(require_admin)):
+    validate_links(db,profile)
+    number=db.execute(update(ClientCodeCounter).where(ClientCodeCounter.id==1).values(next_number=ClientCodeCounter.next_number+1).returning(ClientCodeCounter.next_number)).scalar_one_or_none()
+    if number is None:raise HTTPException(503,'Client code allocation is not configured.')
+    row=Client(client_code=f'C-DAS-{number-1:04d}',version=1)
+    save_values(row,profile);db.add(row)
     try:
-        row=db.execute(text(f"insert into clients ({', '.join(data)}) values ({', '.join(':'+k for k in data)}) returning *"),data).mappings().one()
-        client_id=row["id"]
-        for employee_id in officer_ids:
-            db.execute(text("""insert into client_field_officers(client_id,employee_id)
-              select :client_id,id from employees where id=:employee_id and lower(coalesce(status,'active'))='active'
-              and lower(coalesce(category,'')) not like '%guard%'
-              on conflict(client_id,employee_id) do update set is_active=true"""),{"client_id":client_id,"employee_id":employee_id})
-        db.commit()
-        return dict(row)
-    except Exception as exc:
-        db.rollback(); raise HTTPException(409,str(exc).split("\n")[0])
+        db.flush();assign(db,row,profile.field_officer_ids);audit(db,row,user,'CREATE')
+        result=response(db,row);db.commit();return result
+    except IntegrityError:
+        db.rollback();raise HTTPException(409,'Client name, GSTIN or portal account already exists.') from None
 
-@router.patch("/{client_id}")
-def update_client(client_id:int,payload:dict,db:Session=Depends(get_db),current_user=Depends(require_admin)):
-    data={k:v for k,v in payload.items() if k in {"client_code","company_name","registration_no","gst_number","gstin","billing_address","branch","gst_region","branch_region","billing_cycle","contact_person","contact_email","contact_phone","credit_terms_days","contract_start_date","contract_end_date","is_active"}}
-    if "gstin" in data or "gst_number" in data:
-        data["gstin"]=_validate_gstin(payload); data["gst_number"]=data["gstin"]
-    officer_ids=payload.get("field_officer_ids")
-    if not data and officer_ids is None: raise HTTPException(422,"No editable fields supplied")
+
+@router.patch('/{client_id}')
+def update_client(client_id:int,data:ClientUpdate,db:Session=Depends(get_db),user=Depends(require_admin)):
+    row=get_record(db,user,client_id,True)
+    if db.execute(update(Client).where(Client.id==client_id,Client.version==data.version).values(version=data.version+1)).rowcount!=1:
+        db.rollback();raise HTTPException(409,'This client changed. Reload before saving.')
+    db.refresh(row);validate_links(db,data.profile,row);save_values(row,data.profile)
     try:
-        if data:
-            data["id"]=client_id
-            sets=", ".join(f"{k}=:{k}" for k in data if k!="id")
-            row=db.execute(text(f"update clients set {sets},updated_at=now() where id=:id returning *"),data).mappings().first()
-            if not row: raise HTTPException(404,"Client not found")
-        else:
-            row=db.execute(text("select * from clients where id=:id"),{"id":client_id}).mappings().first()
-            if not row: raise HTTPException(404,"Client not found")
-        if officer_ids is not None:
-            db.execute(text("update client_field_officers set is_active=false where client_id=:client_id"),{"client_id":client_id})
-            for employee_id in officer_ids:
-                db.execute(text("insert into client_field_officers(client_id,employee_id) values(:client_id,:employee_id) on conflict(client_id,employee_id) do update set is_active=true"),{"client_id":client_id,"employee_id":employee_id})
-        db.commit(); return dict(row)
-    except HTTPException:
-        db.rollback(); raise
-    except Exception as exc:
-        db.rollback(); raise HTTPException(409,str(exc).split("\n")[0])
+        db.flush();assign(db,row,data.profile.field_officer_ids);audit(db,row,user,'UPDATE')
+        result=response(db,row);db.commit();return result
+    except IntegrityError:
+        db.rollback();raise HTTPException(409,'Client name, GSTIN or portal account already exists.') from None

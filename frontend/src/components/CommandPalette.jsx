@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAccess } from '../context/AccessContext';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
@@ -15,6 +16,7 @@ import {
 export default function CommandPalette({ isOpen, onClose, onAction = null }) {
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
+  const { canPage, can } = useAccess();
 
   useEffect(() => {
     function handleKeyDown(e) {
@@ -44,15 +46,15 @@ export default function CommandPalette({ isOpen, onClose, onAction = null }) {
   ];
 
   const quickActions = [
-    { label: 'Add New Guard Profile', action: 'add_guard', icon: Plus, category: 'Quick Action' },
-    { label: 'Register New Client Company', action: 'add_client', icon: Plus, category: 'Quick Action' },
-    { label: 'Create Deployment Site', action: 'add_site', icon: Plus, category: 'Quick Action' },
-    { label: 'Schedule Shift / Batch Roster', action: 'add_roster', icon: Plus, category: 'Quick Action' },
-    { label: 'Log Bulk Daily Attendance', action: 'log_attendance', icon: Plus, category: 'Quick Action' },
-    { label: 'Generate Monthly Client Invoice', action: 'generate_invoice', icon: Plus, category: 'Quick Action' },
+    { permission:'employees.create', label: 'Add Employee', action: 'add_guard', icon: Plus, category: 'Quick Action' },
+    { permission:'clients.create', label: 'Register New Client Company', action: 'add_client', icon: Plus, category: 'Quick Action' },
+    { permission:'sites.create', label: 'Create Deployment Site', action: 'add_site', icon: Plus, category: 'Quick Action' },
+    { permission:'rosters.create', label: 'Schedule Shift / Batch Roster', action: 'add_roster', icon: Plus, category: 'Quick Action' },
+    { permission:'attendance.create', label: 'Log Bulk Daily Attendance', action: 'log_attendance', icon: Plus, category: 'Quick Action' },
+    { permission:'billing.create', label: 'Generate Monthly Client Invoice', action: 'generate_invoice', icon: Plus, category: 'Quick Action' },
   ];
 
-  const allItems = [...quickNav, ...quickActions];
+  const allItems = [...quickNav.filter(x=>canPage(x.path)), ...quickActions.filter(x=>onAction&&can(x.permission))];
   const filtered = allItems.filter(item => 
     item.label.toLowerCase().includes(query.toLowerCase())
   );

@@ -9,10 +9,14 @@ import GenerateInvoiceModal from '../modals/GenerateInvoiceModal';
 import InvoicePrintModal from '../modals/InvoicePrintModal';
 import { formatCurrency, formatDate } from '../utils/helpers';
 import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
+import { useAccess } from '../context/AccessContext';
 import { ReceiptText, Plus, DollarSign, CheckCircle2, Clock, Printer, ShieldAlert } from 'lucide-react';
 
 export default function InvoicesView() {
-  const role = 'ADMIN';
+  const {user}=useAuth();
+  const {can}=useAccess();
+  const role=user.role;
 
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);
@@ -90,9 +94,7 @@ export default function InvoicesView() {
     );
   }
 
-  const clientScopedInvoices = role === 'CLIENT'
-    ? enrichedInvoices.filter((inv) => inv.client_id === 2 || inv.client_name?.toLowerCase().includes('acme') || inv.id <= 2)
-    : enrichedInvoices;
+  const clientScopedInvoices = enrichedInvoices;
 
   const filteredInvoices = clientScopedInvoices.filter((inv) => {
     const cName = inv.client_name || '';
@@ -180,7 +182,7 @@ export default function InvoicesView() {
           >
             <Printer className="w-3.5 h-3.5" />
           </button>
-          {role === 'ADMIN' && row.status !== 'PAID' && (
+          {can('billing.edit') && row.status !== 'PAID' && (
             <button
               onClick={(e) => handleStatusToggle(row.id, 'PAID', e)}
               className="px-2 py-1 rounded text-[10px] font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 hover:bg-emerald-900/50"
@@ -206,7 +208,7 @@ export default function InvoicesView() {
               : 'Automated monthly invoice calculation based on verified guard shifts, 18% GST, and printable PDF receipts.'}
           </p>
         </div>
-        {role === 'ADMIN' && (
+        {can('billing.create') && (
           <button
             onClick={() => setGenerateModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-950 bg-cyan-400 hover:bg-cyan-300 transition-all shadow-lg shadow-cyan-500/20 self-start sm:self-auto"

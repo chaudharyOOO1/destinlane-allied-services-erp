@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin, require_hr_or_admin, require_accounts_or_admin, require_owner, require_admin_or_staff
 from app.core.database import get_db
+from app.api.deps import require_management, require_payroll, require_roles
+from app.models.enums import UserRole
 
 router = APIRouter()
 
@@ -110,7 +112,7 @@ async def import_ifsc_csv(
 
 
 @router.get("/summary")
-def erp_summary(db: Session = Depends(get_db), current_user=Depends(require_admin_or_staff)):
+def erp_summary(db: Session = Depends(get_db), current_user=Depends(require_accounts_or_admin)):
     def scalar(sql: str, params=None):
         return db.execute(text(sql), params or {}).scalar_one()
     month_start = date.today().replace(day=1)
@@ -168,7 +170,7 @@ def compliance_expiry(
     return [dict(r) for r in rows]
 
 @router.get("/payroll")
-def payroll(month: Optional[str] = Query(None), db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
+def payroll(month: Optional[str] = Query(None), db: Session = Depends(get_db), current_user=Depends(require_payroll)):
     sql = """
         select s.*, e.employee_code, e.name
         from salary_records s join employees e on e.id=s.employee_id
@@ -189,13 +191,13 @@ def expenses(branch: Optional[str] = Query(None), client_id: Optional[int] = Que
     return [dict(r) for r in db.execute(text(sql), params).mappings().all()]
 
 @router.get("/risk-flags")
-def risk_flags(db: Session = Depends(get_db), current_user=Depends(require_owner)):
+def risk_flags(db: Session = Depends(get_db), current_user=Depends(require_management)):
     rows = db.execute(text("select * from risk_flags where resolved=false order by detected_at desc")).mappings().all()
     return [dict(r) for r in rows]
 
 
 @router.get("/risk-engine")
-def risk_engine(db: Session = Depends(get_db), current_user=Depends(require_owner)):
+def risk_engine(db: Session = Depends(get_db), current_user=Depends(require_management)):
     """Read-only owner risk scan. It derives operational exceptions without mutating source records."""
     risks = []
     def add(code, category, severity, entity_type, entity_id, description):

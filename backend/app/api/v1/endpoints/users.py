@@ -2,11 +2,11 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import text
+from sqlalchemy import text, func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_active_user, require_admin
-from app.api.permissions import all_permission_keys, effective_permissions
+from app.api.permissions import all_permission_keys, effective_permissions, permission_supported, MODULE_ROLES
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.core.supabase_auth import provision_supabase_password_user
@@ -14,9 +14,31 @@ from app.crud.crud_user import user as crud_user
 from app.models.enums import UserRole
 from app.models.user import User
 from app.models.internal_staff import InternalStaff
-from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.models.account_audit import AccountAccessAudit
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, _validate_password_bytes
 
 router = APIRouter()
+
+
+def audit(db, actor, target, action, details):
+    db.add(AccountAccessAudit(actor_id=actor.id,target_id=target.id,action=action,details=details))
+
+
+def assert_unique(db, data, target_id=None):
+    filters=[]
+    if data.get('email'): filters.append(func.lower(User.email)==data['email'].lower())
+    if data.get('login_id'): filters.append(func.upper(User.login_id)==data['login_id'].upper())
+    if data.get('phone_number'): filters.append(User.phone_number.in_([data['phone_number'],'+91'+data['phone_number']]))
+    for predicate in filters:
+        query=db.query(User).filter(predicate)
+        if target_id: query=query.filter(User.id!=target_id)
+        if query.first(): raise HTTPException(409,'Email, Login ID or mobile number already belongs to another account.')
+
+
+def assert_staff_login(db, login_id):
+    if login_id and login_id.startswith('S-DAS-'):
+        record=db.query(InternalStaff).filter_by(staff_code=login_id).first()
+        if not record or record.status!='ACTIVE': raise HTTPException(409,'Staff must be registered and approved before creating their login.')
 ADMIN_ROLES = {UserRole.OWNER, UserRole.SUPER_ADMIN, UserRole.ADMIN}
 
 
@@ -65,25 +87,21 @@ def create_user(
     user_in: UserCreate,
     current_user: User = Depends(require_admin),
 ) -> UserResponse:
-    if user_in.login_id:
-        user_in.login_id = user_in.login_id.strip().upper()
-        if user_in.login_id.startswith('S-DAS-'):
-            staff_record = db.query(InternalStaff).filter_by(staff_code=user_in.login_id).first()
-            if not staff_record or staff_record.status != 'ACTIVE':
-                raise HTTPException(409, 'Staff must be registered and approved before creating their login.')
-    if user_in.role in ADMIN_ROLES and _role_value(current_user.role) != "OWNER":
-        raise HTTPException(403, "Only the Owner can create administrator accounts.")
-    if crud_user.get_by_email(db, email=user_in.email):
-        raise HTTPException(400, "A user with this email already exists.")
-    if user_in.login_id and crud_user.get_by_login_id(db, login_id=user_in.login_id):
-        raise HTTPException(400, "A user with this Login ID already exists.")
-
+    assert_staff_login(db,user_in.login_id)
+    if user_in.role in ADMIN_ROLES and current_user.role != UserRole.OWNER:
+        raise HTTPException(403,'Only the Owner can create administrator accounts.')
+    assert_unique(db,user_in.model_dump())
     auth_user = provision_supabase_password_user(email=user_in.email, password=user_in.password)
     if not auth_user:
         raise HTTPException(502, "Supabase Auth account provisioning failed.")
 
     try:
-        return crud_user.create(db, obj_in=user_in)
+        data=user_in.model_dump(exclude={'password'})
+        db_user=User(**data,hashed_password=get_password_hash(user_in.password),must_change_password=True)
+        db.add(db_user);db.flush()
+        audit(db,current_user,db_user,'CREATE',{'login_id':db_user.login_id,'role':db_user.role.value,'is_active':db_user.is_active})
+        db.commit();db.refresh(db_user)
+        return db_user
     except Exception:
         db.rollback()
         raise HTTPException(409, "Unable to create the account. Check for duplicate account details.")
@@ -96,7 +114,7 @@ def read_user(
     user_id: int,
     current_user: User = Depends(get_current_active_user),
 ) -> UserResponse:
-    if not (current_user.is_superuser or current_user.role in ADMIN_ROLES) and current_user.id != user_id:
+    if not (current_user.role in ADMIN_ROLES) and current_user.id != user_id:
         raise HTTPException(403, "Access forbidden.")
     db_user = crud_user.get(db, id=user_id)
     if not db_user:
@@ -126,16 +144,34 @@ def update_user(
         existing = crud_user.get_by_login_id(db, login_id=update_dict["login_id"])
         if existing and existing.id != db_user.id:
             raise HTTPException(400, "That Login ID is already assigned to another account.")
+    if any(update_dict.get(k) is None for k in ('role','full_name','is_active') if k in update_dict):
+        raise HTTPException(422,'Role, name and account status cannot be cleared.')
+    if 'login_id' in update_dict and update_dict['login_id'] != db_user.login_id:
+        assert_staff_login(db,update_dict['login_id'])
+    assert_unique(db,update_dict,db_user.id)
     if "password" in update_dict:
         auth_user = provision_supabase_password_user(email=db_user.email, password=update_dict["password"])
         if not auth_user:
             raise HTTPException(502, "Supabase Auth password synchronization failed.")
 
-    return crud_user.update(db, db_obj=db_user, obj_in=update_dict)
+    if update_dict.get('is_active') is False:
+        db_user.session_version+=1
+    changes={key:value.value if isinstance(value,UserRole) else value for key,value in update_dict.items() if key!='password'}
+    if 'password' in update_dict:
+        db_user.hashed_password=get_password_hash(update_dict.pop('password'))
+        db_user.must_change_password=True
+        db_user.password_initialized_at=None
+        db_user.session_version+=1
+        changes['temporary_password_reset']=True
+    for key,value in update_dict.items(): setattr(db_user,key,value)
+    audit(db,current_user,db_user,'UPDATE',changes)
+    db.commit();db.refresh(db_user)
+    return db_user
 
 
 class ResetPasswordRequest(BaseModel):
     new_password: str = Field(min_length=12, max_length=72)
+    _password_bytes = field_validator("new_password")(_validate_password_bytes)
 
 
 @router.post("/{user_id}/reset-password")
@@ -157,6 +193,9 @@ def reset_password(
 
     db_user.hashed_password = get_password_hash(data.new_password)
     db_user.password_initialized_at = None
+    db_user.must_change_password = True
+    db_user.session_version += 1
+    audit(db,current_user,db_user,'PASSWORD_RESET',{})
     db.add(db_user)
     db.commit()
     return {"status": "success", "message": "Password reset. The user should change it after signing in."}
@@ -179,7 +218,7 @@ def get_user_permissions(
     db_user = crud_user.get(db, id=user_id)
     if not db_user:
         raise HTTPException(404, "User not found.")
-    return {"permissions": effective_permissions(db, db_user), "catalog": all_permission_keys()}
+    return {"permissions": effective_permissions(db, db_user), "catalog": all_permission_keys(), "module_roles": MODULE_ROLES, "supported": {key:permission_supported(_role_value(db_user.role),key) for key in all_permission_keys()}}
 
 
 @router.put("/{user_id}/permissions")
@@ -196,6 +235,10 @@ def set_user_permission(
     if not db_user:
         raise HTTPException(404, "User not found.")
     _assert_manage_target(current_user, db_user)
+    if data.allowed and not permission_supported(_role_value(db_user.role),data.permission_key):
+        raise HTTPException(422,'This action is unavailable for the account role.')
+    if current_user.id==db_user.id and data.permission_key in {'user_management.view','user_management.edit'} and not data.allowed:
+        raise HTTPException(400,'You cannot remove your own account administration access.')
     if db_user.role == UserRole.OWNER and db_user.is_superuser:
         raise HTTPException(400, "The Owner break-glass account cannot have permissions disabled.")
 
@@ -203,13 +246,14 @@ def set_user_permission(
         text(
             """
             insert into public.user_permissions(user_id, permission_key, allowed, updated_at)
-            values (:user_id, :permission_key, :allowed, now())
+            values (:user_id, :permission_key, :allowed, CURRENT_TIMESTAMP)
             on conflict (user_id, permission_key)
-            do update set allowed=excluded.allowed, updated_at=now()
+            do update set allowed=excluded.allowed, updated_at=CURRENT_TIMESTAMP
             """
         ),
         {"user_id": user_id, "permission_key": data.permission_key, "allowed": data.allowed},
     )
+    audit(db,current_user,db_user,'PERMISSION',{'permission_key':data.permission_key,'allowed':data.allowed})
     db.commit()
     return {"status": "success", "permission_key": data.permission_key, "allowed": data.allowed}
 
@@ -232,4 +276,15 @@ def delete_user(
         active_admins = db.query(User).filter(User.is_active.is_(True), User.role.in_(list(ADMIN_ROLES))).count()
         if active_admins <= 1:
             raise HTTPException(400, "The last active administrator cannot be deleted.")
-    return crud_user.remove(db, id=user_id)
+    db_user.is_active=False
+    db_user.session_version+=1
+    audit(db,current_user,db_user,'DISABLE',{})
+    db.commit();db.refresh(db_user)
+    return db_user
+
+
+@router.get('/{user_id}/audit')
+def account_audit(user_id:int, db:Session=Depends(get_db), current_user:User=Depends(require_admin)):
+    if not db.get(User,user_id): raise HTTPException(404,'User not found.')
+    rows=db.query(AccountAccessAudit).filter_by(target_id=user_id).order_by(AccountAccessAudit.id.desc()).limit(100).all()
+    return [{'id':r.id,'actor_id':r.actor_id,'action':r.action,'details':r.details,'created_at':r.created_at} for r in rows]

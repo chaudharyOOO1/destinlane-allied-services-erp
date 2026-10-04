@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { AccessProvider } from './context/AccessContext';
 import { CompanyProvider } from './context/CompanyContext';
 import CompanySettings from './pages/CompanySettings';
 import StaffMaster from './pages/StaffMaster';
@@ -27,7 +28,7 @@ import AccountSettings from './pages/AccountSettings';
 import './App.css';
 
 function App() {
-  return <AuthProvider><CompanyProvider><Router><Routes>
+  return <AuthProvider><AccessProvider><CompanyProvider><Router><Routes>
     <Route path="/login" element={<Login />} />
     <Route path="/admin-setup" element={<AdminSetup />} />
     <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -56,6 +57,6 @@ function App() {
     </Route>
     <Route path="/" element={<Navigate to="/erp" replace />} />
     <Route path="*" element={<Navigate to="/erp" replace />} />
-  </Routes></Router></CompanyProvider></AuthProvider>;
+  </Routes></Router></CompanyProvider></AccessProvider></AuthProvider>;
 }
 export default App;

@@ -40,6 +40,8 @@ def _request_permission(request: Request) -> str | None:
     module = next((m for prefix,m in mappings if path == prefix or path.startswith(prefix + "/")), None)
     if module is None:
         return "__unknown__"
+    if module == "user_management" and path.endswith("/reset-password"):
+        return "user_management.edit"
     if module == "staff" and (path.endswith("/submit") or path.endswith("/status")):
         return "staff.edit"
     if module == "staff" and path.endswith("/decision"):
@@ -62,6 +64,10 @@ def get_current_user(request: Request, db: Session = Depends(get_db), token: str
     user = crud_user.get(db, id=user_id_int)
     if user is None or not user.is_active:
         raise credentials_exception
+    if payload.get('sv',0) != user.session_version:
+        raise credentials_exception
+    if user.must_change_password and not request.url.path.startswith(f'{settings.API_V1_STR}/auth/'):
+        raise HTTPException(403, 'Change your temporary password from My Account before using ERP modules.')
     requested_permission = _request_permission(request)
     # The permission endpoint already restricts non-admins to their own account.
     # Let every active account read its own access flags for navigation.
@@ -83,7 +89,7 @@ class RoleChecker:
         self.allowed_roles = list(allowed_roles)
         self.allow_super_admin = allow_super_admin
     def __call__(self, current_user: User = Depends(get_current_active_user)) -> User:
-        if self.allow_super_admin and (current_user.is_superuser or current_user.role in [UserRole.OWNER,UserRole.SUPER_ADMIN]):
+        if self.allow_super_admin and (current_user.role in [UserRole.OWNER,UserRole.SUPER_ADMIN]):
             return current_user
         if current_user.role not in self.allowed_roles:
             role_names=[r.value for r in self.allowed_roles]
@@ -107,3 +113,6 @@ require_client = RoleChecker([UserRole.CLIENT])
 require_staff = RoleChecker([UserRole.STAFF], allow_super_admin=False)
 require_admin_or_client = RoleChecker([UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.ADMIN,UserRole.CLIENT])
 require_admin_or_staff = RoleChecker([UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.ADMIN,UserRole.STAFF])
+
+require_management = RoleChecker([UserRole.OWNER,UserRole.SUPER_ADMIN], allow_super_admin=False)
+require_payroll = RoleChecker([UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.ADMIN,UserRole.HR,UserRole.ACCOUNTS])

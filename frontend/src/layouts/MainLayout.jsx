@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCompany } from '../context/CompanyContext';
-import api from '../api/axios';
+import { useAccess } from '../context/AccessContext';
 import CommandPalette from '../components/CommandPalette';
 import {
   LayoutDashboard, Users, MapPin, ClipboardList, ReceiptText, Shield,
@@ -42,7 +42,7 @@ const NAV_GROUPS = [
 
 export default function MainLayout({ children, onQuickAction = null }) {
   const { user, logout } = useAuth();
-  const [permissions, setPermissions] = useState(null);
+  const { canPage, home } = useAccess();
   const { company } = useCompany();
   const apiConnected = true;
   const navigate = useNavigate();
@@ -52,26 +52,7 @@ export default function MainLayout({ children, onQuickAction = null }) {
   const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
 
   const role = user?.role || 'STAFF';
-  const ROLE_PERMISSIONS = {
-    OWNER: new Set(['*']),
-    SUPER_ADMIN: new Set(['dashboard.view','employees.view','rosters.view','attendance.view','clients.view','sites.view','billing.view','payroll.view','finance.view','compliance.view','risks.view','user_management.view']),
-    ADMIN: new Set(['dashboard.view','employees.view','rosters.view','attendance.view','clients.view','sites.view','billing.view','payroll.view','finance.view','compliance.view','risks.view','user_management.view']),
-    HR: new Set(['dashboard.view','employees.view','compliance.view','user_management.view']),
-    OPERATIONS: new Set(['dashboard.view','employees.view','rosters.view','attendance.view','clients.view','sites.view']),
-    ACCOUNTS: new Set(['dashboard.view','billing.view','payroll.view','finance.view','compliance.view']),
-    SUPERVISOR: new Set(['dashboard.view','employees.view','rosters.view','attendance.view','sites.view']),
-    CLIENT: new Set(['dashboard.view','attendance.view','clients.view','sites.view','rosters.view']),
-    STAFF: new Set(['dashboard.view','attendance.view','sites.view','rosters.view']),
-  };
-  const allowed = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.STAFF;
-  if (['SUPER_ADMIN','ADMIN','HR'].includes(role)) allowed.add('staff.view');
-  if (['SUPER_ADMIN','ADMIN','HR','OPERATIONS','ACCOUNTS'].includes(role)) allowed.add('company.view');
-  useEffect(() => {
-    let ignore = false;
-    api.get(`/users/${user.id}/permissions`).then(({data}) => { if (!ignore) setPermissions(data.permissions); }).catch(() => { if (!ignore) setPermissions({}); });
-    return () => { ignore = true; };
-  }, [user.id]);
-  const visibleGroups = NAV_GROUPS.map(group => ({ ...group, items: group.items.filter(item => item.permission === 'staff.view' ? ['OWNER','SUPER_ADMIN','ADMIN','HR','OPERATIONS','ACCOUNTS'].includes(role) && (role === 'OWNER' || permissions?.[item.permission] === true) : (allowed.has('*') || allowed.has(item.permission))) })).filter(group => group.items.length);
+  const visibleGroups = NAV_GROUPS.map(group => ({...group,items:group.items.filter(item=>canPage(item.path))})).filter(group=>group.items.length);
 
   const go = (path) => { navigate(path); setMobileMenuOpen(false); };
 
@@ -92,7 +73,7 @@ export default function MainLayout({ children, onQuickAction = null }) {
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
-          <button onClick={() => go('/erp')} className="flex items-center gap-3 shrink-0 text-left group">
+          <button onClick={() => go(home)} className="flex items-center gap-3 shrink-0 text-left group">
             <div className="w-9 h-9 rounded-lg bg-slate-950 text-white flex items-center justify-center shadow-sm group-hover:bg-slate-800 transition-colors">
               <Shield className="w-[18px] h-[18px]" />
             </div>

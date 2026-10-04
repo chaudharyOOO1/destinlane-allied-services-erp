@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Enum as SQLEnum
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 from app.models.enums import UserRole
@@ -20,6 +20,8 @@ class User(BaseModel):
     )
     is_active = Column(Boolean, default=True, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)
+    must_change_password = Column(Boolean, default=False, nullable=False)
+    session_version = Column(Integer, default=0, nullable=False)
     password_initialized_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships

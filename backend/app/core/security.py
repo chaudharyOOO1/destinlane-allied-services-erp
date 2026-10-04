@@ -25,9 +25,9 @@ def get_password_hash(password: str) -> str:
     return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("utf-8")
 
 
-def create_access_token(subject: Union[str, Any], expires_delta: Optional[timedelta] = None, role: Optional[Union[str, Any]] = None) -> str:
+def create_access_token(subject: Union[str, Any], expires_delta: Optional[timedelta] = None, role: Optional[Union[str, Any]] = None, session_version: int = 0) -> str:
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
-    payload = {"exp": expire, "sub": str(subject)}
+    payload = {"exp": expire, "sub": str(subject), "sv": session_version}
     if role is not None:
         payload["role"] = getattr(role, "value", role)
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
