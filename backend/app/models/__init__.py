@@ -40,3 +40,4 @@ __all__ = [
 from app.models.internal_staff import InternalStaff, StaffCodeCounter, StaffHistory, StaffApprovalSettings
 
 from app.models.account_audit import AccountAccessAudit
+from app.models.commercial import ClientContract, SiteRateCard, SiteCodeCounter, CommercialHistory

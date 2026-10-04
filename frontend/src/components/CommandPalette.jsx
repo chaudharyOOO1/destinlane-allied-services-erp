@@ -39,6 +39,7 @@ export default function CommandPalette({ isOpen, onClose, onAction = null }) {
     { label: 'Operational Command Dashboard', path: '/dashboard', icon: Sparkles, category: 'Navigation' },
     { label: 'Security Personnel & Guard Dossiers', path: '/personnel', icon: Shield, category: 'Navigation' },
     { label: 'Client Accounts & Contracts', path: '/clients', icon: Users, category: 'Navigation' },
+    { label: 'Contracts & Site Rates', path: '/contracts', icon: ReceiptText, category: 'Navigation' },
     { label: 'Deployment Sites & Facilities', path: '/sites', icon: MapPin, category: 'Navigation' },
     { label: 'Duty Rosters & Shift Matrix', path: '/rosters', icon: Calendar, category: 'Navigation' },
     { label: 'Attendance & Overtime Radar', path: '/attendance', icon: ClipboardList, category: 'Navigation' },

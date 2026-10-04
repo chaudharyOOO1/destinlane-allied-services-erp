@@ -3,7 +3,7 @@ import { useAuth } from './AuthContext';
 import api from '../api/axios';
 
 const AccessContext = createContext(null);
-export const pageModules = {'/erp':'dashboard','/dashboard':'dashboard','/employees':'employees','/personnel':'recruitment','/staff':'staff','/clients':'clients','/sites':'sites','/rosters':'rosters','/attendance':'attendance','/billing':'billing','/payroll':'payroll','/accounts':'finance','/compliance':'compliance','/risks':'risks','/owner-executive':'owner','/users':'user_management','/ifsc-master':'employees','/company':'company'};
+export const pageModules = {'/erp':'dashboard','/dashboard':'dashboard','/employees':'employees','/personnel':'recruitment','/staff':'staff','/clients':'clients','/contracts':'contracts','/sites':'sites','/rosters':'rosters','/attendance':'attendance','/billing':'billing','/payroll':'payroll','/accounts':'finance','/compliance':'compliance','/risks':'risks','/owner-executive':'owner','/users':'user_management','/ifsc-master':'employees','/company':'company'};
 export function AccessProvider({children}) {
   const {user} = useAuth();
   const userId=user?.id;

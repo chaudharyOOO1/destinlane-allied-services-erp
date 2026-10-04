@@ -17,7 +17,7 @@ def clients_client(client):
     with sessions() as db:
         db.execute(text("ATTACH DATABASE ':memory:' AS public"))
         db.execute(text('CREATE TABLE public.user_permissions(user_id INTEGER,permission_key TEXT,allowed BOOLEAN)'))
-        db.execute(text('CREATE TABLE client_contracts(id INTEGER PRIMARY KEY,client_id INTEGER,status TEXT,contract_end_date DATE)'))
+        db.execute(text('CREATE TABLE IF NOT EXISTS client_contracts(id INTEGER PRIMARY KEY,client_id INTEGER,status TEXT,contract_end_date DATE)'))
         db.add(ClientCodeCounter(id=1,next_number=1));db.commit()
     token=http.post('/api/v1/auth/login',json={'login_id':'ADMIN-001','password':'test-password-before'}).json()['access_token']
     return http,sessions,{'Authorization':'Bearer '+token}

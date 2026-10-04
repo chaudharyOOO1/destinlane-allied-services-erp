@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Integer, ForeignKey, Text, JSON
+from sqlalchemy import Column, String, Boolean, Integer, ForeignKey, Text, JSON, Float, Numeric
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 
@@ -17,6 +17,15 @@ class Site(BaseModel):
     shift_requirements = Column(JSON, default=dict, nullable=False)
     contact_phone = Column(String(50), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
+    branch = Column(String(100), nullable=True)
+    branch_region = Column(String(30), nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    geofence_radius_meters = Column(Integer, nullable=False, default=100)
+    contractual_rate = Column(Numeric(12,2), nullable=False, default=0)
+    profile = Column(JSON, nullable=False, default=dict)
+    version = Column(Integer, nullable=False, default=1)
+    contract_id = Column(Integer, ForeignKey('client_contracts.id', ondelete='RESTRICT'), nullable=True, index=True)
 
     # Relationships
     client = relationship("Client", back_populates="sites")

@@ -24,6 +24,7 @@ const NAV_GROUPS = [
   ]},
   { label: 'Clients & Sites', items: [
     { icon: BriefcaseBusiness, label: 'Clients', path: '/clients', permission: 'clients.view' },
+    { icon: FileCheck2, label: 'Contracts & Rates', path: '/contracts', permission: 'contracts.view' },
     { icon: MapPin, label: 'Sites & Deployment', path: '/sites', permission: 'sites.view' },
   ]},
   { label: 'Finance', items: [

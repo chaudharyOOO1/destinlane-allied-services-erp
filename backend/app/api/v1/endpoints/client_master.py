@@ -1,3 +1,4 @@
+from app.core.business_time import business_date
 from datetime import date,datetime,timezone
 from fastapi import APIRouter,Depends,HTTPException
 from sqlalchemy import update,func,text
@@ -51,7 +52,7 @@ def response(db,row,counts=True):
         contract=db.execute(text("select count(*) as total,min(contract_end_date) as expiry from client_contracts where client_id=:id and status in ('ACTIVE','RENEWED')"),{'id':row.id}).mappings().one()
         expiry=contract['expiry']
         if isinstance(expiry,str):expiry=date.fromisoformat(expiry)
-        days=(expiry-date.today()).days if expiry else None
+        days=(expiry-business_date()).days if expiry else None
         result.update(active_contract_count=contract['total'],nearest_contract_end=expiry,renewal_status='EXPIRED' if days is not None and days<0 else 'EXPIRING_30' if days is not None and days<=30 else 'EXPIRING_60' if days is not None and days<=60 else 'NORMAL')
     return result
 

@@ -183,8 +183,10 @@ def generate_attendance_invoice(payload: dict, db: Session = Depends(get_db), cu
       join shift_rosters r on r.site_id=s.id join attendance a on a.roster_id=r.id
       left join staff_profiles sp on sp.employee_id=a.employee_id
       left join site_rate_cards rc on rc.site_id=s.id and rc.vertical=coalesce(sp.vertical,'SECURITY') and rc.category=coalesce(sp.category,'STAFF') and rc.is_active=true
+        and rc.effective_from<=a.attendance_date and (rc.effective_to is null or rc.effective_to>=a.attendance_date)
+        and (rc.contract_id is null or exists(select 1 from client_contracts cc where cc.id=rc.contract_id and cc.status in ('ACTIVE','RENEWED','EXPIRED','TERMINATED') and a.attendance_date between cc.contract_start_date and cc.contract_end_date))
       where a.attendance_date between :start and :end and a.is_geofence_verified=true{filters}
-      group by s.id,s.site_name,s.client_id,c.company_name,c.branch_region,c.gst_region"""),params).mappings().all()
+      group by s.id,s.site_name,s.client_id,c.company_name,c.branch_region,s.branch_region"""),params).mappings().all()
     generated=[]
     for row in rows:
         subtotal=round(float(row["service_value"] or 0)+float(row["overtime_value"] or 0),2)

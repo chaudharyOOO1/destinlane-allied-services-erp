@@ -16,6 +16,7 @@ import Employees from './pages/Employees';
 import Personnel from './pages/Personnel';
 import Clients from './pages/Clients';
 import Sites from './pages/Sites';
+import Contracts from './pages/Contracts';
 import Rosters from './pages/Rosters';
 import Attendance from './pages/Attendance';
 import ControlCenter from './pages/ControlCenter';
@@ -42,6 +43,7 @@ function App() {
       <Route path="/employees" element={<Employees />} />
       <Route path="/personnel" element={<Personnel />} />
       <Route path="/clients" element={<Clients />} />
+      <Route path="/contracts" element={<Contracts />} />
       <Route path="/sites" element={<Sites />} />
       <Route path="/rosters" element={<Rosters />} />
       <Route path="/attendance" element={<Attendance />} />
