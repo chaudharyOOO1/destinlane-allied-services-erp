@@ -1,0 +1,13 @@
+alter table public.shift_rosters drop constraint shift_rosters_shift_type_check;
+alter table public.shift_rosters add constraint shift_rosters_shift_type_check check(shift_type in ('DAY','NIGHT','GENERAL'));
+alter table public.shift_rosters drop constraint shift_rosters_site_id_guard_id_date_shift_type_key;
+create unique index roster_employee_day_active on public.shift_rosters(guard_id,date) where status in ('SCHEDULED','COMPLETED');
+alter table public.shift_rosters add column version integer not null default 1,add column created_by integer references public.users(id),add column updated_by integer references public.users(id);
+create index roster_created_by_idx on public.shift_rosters(created_by);
+create index roster_updated_by_idx on public.shift_rosters(updated_by);
+create table public.roster_history(id bigint generated always as identity primary key,roster_id integer not null references public.shift_rosters(id) on delete restrict,changed_by integer references public.users(id),action text not null,version integer not null,details jsonb not null,created_at timestamptz not null default now());
+create index roster_history_roster_idx on public.roster_history(roster_id);
+create index roster_history_user_idx on public.roster_history(changed_by);
+alter table public.roster_history enable row level security;
+revoke all on public.roster_history from anon,authenticated;
+create policy roster_history_backend_only on public.roster_history for all to anon,authenticated using(false) with check(false);

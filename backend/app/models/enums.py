@@ -22,6 +22,7 @@ class GuardStatus(str, enum.Enum):
 
 
 class ShiftType(str, enum.Enum):
+    GENERAL = "GENERAL"
     DAY = "DAY"
     NIGHT = "NIGHT"
 

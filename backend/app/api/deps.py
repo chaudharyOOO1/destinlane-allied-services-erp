@@ -46,6 +46,7 @@ def _request_permission(request: Request) -> str | None:
         return "staff.edit"
     if module == "staff" and path.endswith("/decision"):
         return "staff.approve"
+    if module == "rosters" and path.endswith("/cancel"): return "rosters.edit"
     if module == "employees":
         if path.endswith("/decision") or path.endswith("/verify"): return "employees.approve"
         if path.endswith("/submit") or path.endswith("/compliance-refresh") or path.endswith("/status"): return "employees.edit"

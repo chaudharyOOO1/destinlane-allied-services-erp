@@ -42,9 +42,10 @@ def punch_attendance(payload: dict, db: Session = Depends(get_db), current_user=
     roster = db.execute(text("""select r.*,g.user_id,g.employee_id,s.site_name,s.latitude site_lat,
       s.longitude site_lng,coalesce(s.geofence_radius_meters,100) radius_m
       from shift_rosters r join guard_profiles g on g.id=r.guard_id
-      join sites s on s.id=r.site_id where r.id=:id"""), {"id": roster_id}).mappings().first()
+      join sites s on s.id=r.site_id where r.id=:id for update of r"""), {"id": roster_id}).mappings().first()
     if not roster:
         raise HTTPException(404, "Roster not found")
+    if roster["status"] != "SCHEDULED": raise HTTPException(409,"This deployment is no longer scheduled.")
     if current_user.role.value == "STAFF" and roster["user_id"] != current_user.id:
         raise HTTPException(403, "Staff may only punch their own assigned roster")
     from app.api.v1.endpoints.roster_master import _assert_deployable

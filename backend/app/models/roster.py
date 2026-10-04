@@ -21,12 +21,12 @@ class ShiftRoster(BaseModel):
     )
     date = Column(Date, nullable=False, index=True)
     shift_type = Column(
-        SQLEnum(ShiftType, name="shift_type_enum", native_enum=True),
+        String(20),
         nullable=False,
         index=True,
     )
     status = Column(
-        SQLEnum(RosterStatus, name="roster_status_enum", native_enum=True),
+        String(20),
         default=RosterStatus.SCHEDULED,
         nullable=False,
         index=True,

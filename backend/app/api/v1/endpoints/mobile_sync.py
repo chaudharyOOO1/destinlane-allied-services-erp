@@ -212,7 +212,7 @@ def mobile_punch(
               and r.date=current_date
               and r.status='SCHEDULED'
             order by r.id
-            limit 1
+            limit 1 for update of r
             """
         ),
         {"employee_id": str(employee["id"])},
