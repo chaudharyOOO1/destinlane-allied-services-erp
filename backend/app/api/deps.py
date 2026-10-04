@@ -26,7 +26,7 @@ def _request_permission(request: Request) -> str | None:
     if path == "/erp/company/profile" and request.method.upper() == "GET":
         return None
     mappings = [
-        ("/erp/company","company"),
+        ("/erp/company","company"),("/erp/internal-staff","staff"),
         ("/users","user_management"),("/owner","owner"),("/erp/employees","employees"),
         ("/erp/recruitment","recruitment"),("/erp/staff","employees"),("/erp/clients","clients"),
         ("/erp/contracts","contracts"),("/erp/sites","sites"),("/erp/rosters","rosters"),
@@ -40,6 +40,10 @@ def _request_permission(request: Request) -> str | None:
     module = next((m for prefix,m in mappings if path == prefix or path.startswith(prefix + "/")), None)
     if module is None:
         return "__unknown__"
+    if module == "staff" and (path.endswith("/submit") or path.endswith("/status")):
+        return "staff.edit"
+    if module == "staff" and path.endswith("/decision"):
+        return "staff.approve"
     action = {"GET":"view","POST":"create","PUT":"edit","PATCH":"edit","DELETE":"delete"}.get(request.method.upper(),"view")
     return f"{module}.{action}"
 
@@ -59,6 +63,10 @@ def get_current_user(request: Request, db: Session = Depends(get_db), token: str
     if user is None or not user.is_active:
         raise credentials_exception
     requested_permission = _request_permission(request)
+    # The permission endpoint already restricts non-admins to their own account.
+    # Let every active account read its own access flags for navigation.
+    if request.method == 'GET' and request.url.path.rstrip('/') == f'{settings.API_V1_STR}/users/{user.id}/permissions':
+        requested_permission = None
     if requested_permission and not has_permission(db, user, requested_permission):
         raise HTTPException(status_code=403, detail=f"Permission denied: {requested_permission}")
     return user

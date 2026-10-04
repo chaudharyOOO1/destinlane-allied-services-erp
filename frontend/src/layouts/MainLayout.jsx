@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCompany } from '../context/CompanyContext';
+import api from '../api/axios';
 import CommandPalette from '../components/CommandPalette';
 import {
   LayoutDashboard, Users, MapPin, ClipboardList, ReceiptText, Shield,
@@ -16,6 +17,7 @@ const NAV_GROUPS = [
     { icon: Landmark, label: 'Owner Executive', path: '/owner-executive', permission: 'owner.view' },
   ]},
   { label: 'Workforce', items: [
+    { icon: UserRound, label: 'Staff Master', path: '/staff', permission: 'staff.view' },
     { icon: Users, label: 'Employees', path: '/employees', permission: 'employees.view' },
     { icon: Calendar, label: 'Rosters', path: '/rosters', permission: 'rosters.view' },
     { icon: ClipboardList, label: 'Attendance', path: '/attendance', permission: 'attendance.view' },
@@ -40,6 +42,7 @@ const NAV_GROUPS = [
 
 export default function MainLayout({ children, onQuickAction = null }) {
   const { user, logout } = useAuth();
+  const [permissions, setPermissions] = useState(null);
   const { company } = useCompany();
   const apiConnected = true;
   const navigate = useNavigate();
@@ -61,8 +64,14 @@ export default function MainLayout({ children, onQuickAction = null }) {
     STAFF: new Set(['dashboard.view','attendance.view','sites.view','rosters.view']),
   };
   const allowed = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.STAFF;
+  if (['SUPER_ADMIN','ADMIN','HR'].includes(role)) allowed.add('staff.view');
   if (['SUPER_ADMIN','ADMIN','HR','OPERATIONS','ACCOUNTS'].includes(role)) allowed.add('company.view');
-  const visibleGroups = NAV_GROUPS.map(group => ({ ...group, items: group.items.filter(item => allowed.has('*') || allowed.has(item.permission)) })).filter(group => group.items.length);
+  useEffect(() => {
+    let ignore = false;
+    api.get(`/users/${user.id}/permissions`).then(({data}) => { if (!ignore) setPermissions(data.permissions); }).catch(() => { if (!ignore) setPermissions({}); });
+    return () => { ignore = true; };
+  }, [user.id]);
+  const visibleGroups = NAV_GROUPS.map(group => ({ ...group, items: group.items.filter(item => item.permission === 'staff.view' ? ['OWNER','SUPER_ADMIN','ADMIN','HR','OPERATIONS','ACCOUNTS'].includes(role) && (role === 'OWNER' || permissions?.[item.permission] === true) : (allowed.has('*') || allowed.has(item.permission))) })).filter(group => group.items.length);
 
   const go = (path) => { navigate(path); setMobileMenuOpen(false); };
 

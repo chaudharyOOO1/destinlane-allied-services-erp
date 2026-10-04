@@ -13,6 +13,7 @@ from app.core.supabase_auth import provision_supabase_password_user
 from app.crud.crud_user import user as crud_user
 from app.models.enums import UserRole
 from app.models.user import User
+from app.models.internal_staff import InternalStaff
 from app.schemas.user import UserCreate, UserUpdate, UserResponse
 
 router = APIRouter()
@@ -64,6 +65,12 @@ def create_user(
     user_in: UserCreate,
     current_user: User = Depends(require_admin),
 ) -> UserResponse:
+    if user_in.login_id:
+        user_in.login_id = user_in.login_id.strip().upper()
+        if user_in.login_id.startswith('S-DAS-'):
+            staff_record = db.query(InternalStaff).filter_by(staff_code=user_in.login_id).first()
+            if not staff_record or staff_record.status != 'ACTIVE':
+                raise HTTPException(409, 'Staff must be registered and approved before creating their login.')
     if user_in.role in ADMIN_ROLES and _role_value(current_user.role) != "OWNER":
         raise HTTPException(403, "Only the Owner can create administrator accounts.")
     if crud_user.get_by_email(db, email=user_in.email):
@@ -165,8 +172,10 @@ def get_user_permissions(
     *,
     db: Session = Depends(get_db),
     user_id: int,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(get_current_active_user),
 ) -> dict:
+    if current_user.id != user_id and current_user.role not in ADMIN_ROLES:
+        raise HTTPException(403, 'You can only view your own permissions.')
     db_user = crud_user.get(db, id=user_id)
     if not db_user:
         raise HTTPException(404, "User not found.")

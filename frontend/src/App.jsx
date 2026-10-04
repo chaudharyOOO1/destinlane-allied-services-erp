@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './context/AuthContext';
 import { CompanyProvider } from './context/CompanyContext';
 import CompanySettings from './pages/CompanySettings';
+import StaffMaster from './pages/StaffMaster';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import AdminSetup from './pages/AdminSetup';
@@ -33,6 +34,7 @@ function App() {
     <Route path="/reset-password" element={<ResetPassword />} />
     <Route path="/admin-recovery" element={<AdminRecovery />} />
     <Route element={<ProtectedRoute />}>
+      <Route path="/staff" element={<StaffMaster />} />
       <Route path="/company" element={<CompanySettings />} />
       <Route path="/erp" element={<ERPModules />} />
       <Route path="/dashboard" element={<Dashboard />} />
