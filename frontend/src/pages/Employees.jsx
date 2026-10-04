@@ -1,522 +1,1532 @@
-import { useEffect, useMemo, useState } from 'react';
-import MainLayout from '../layouts/MainLayout';
-import EmployeeOnboardingWorkflow from '../components/EmployeeOnboardingWorkflow';
-import api from '../api/axios';
-import {
-  AlertTriangle, Banknote, BadgeCheck, CalendarDays, Camera, CheckCircle2,
-  ChevronRight, ClipboardCheck, Download, FileCheck2, FileText, HeartPulse,
-  Landmark, LockKeyhole, Plus, RefreshCw, Search, ShieldCheck, UserRound,
-  UsersRound, X, Upload, WalletCards, FileUp, Eye, ShieldAlert
-} from 'lucide-react';
+import { useCallback, useEffect, useState } from "react";
+import MainLayout from "../layouts/MainLayout";
+import api from "../api/axios";
+import { useAccess } from "../context/AccessContext";
+import { useAuth } from "../context/AuthContext";
 
-const EMPTY_MASTER = {
-  employee_code: '', name: '', phone: '', dob: '', gender: '', designation: '',
-  client_id: '', site_id: '', joining_date: '', category: 'GUARD', status: 'active',
-  intimation_id: '', emergency_contact: '', marital_status: '',
-  aadhaar_no: '', pan_no: '', permanent_address: '', present_address: '',
+const tabs = [
+  ["master", "Employee Master"],
+  ["creation", "Employee Creation"],
+  ["compliance", "Employee Compliance Documents"],
+  ["reports", "Employee Reports"],
+];
+const inputClass =
+  "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm";
+const buttonClass =
+  "rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50";
+const types = [
+  "PHOTO",
+  "AADHAAR",
+  "PAN",
+  "FORM_11",
+  "ESIC_FORM",
+  "BANK_PASSBOOK",
+  "POLICE_VERIFICATION",
+  "MEDICAL_FITNESS",
+  "FORM_11A",
+  "BANK_CHEQUE",
+  "ADDRESS_PROOF",
+  "PSARA_CERTIFICATE",
+  "GUN_LICENSE",
+  "NOMINEE_ID",
+  "OTHER",
+];
+const categories = [
+  "GUARD",
+  "GUNMAN",
+  "SUPERVISOR",
+  "FIELD_OFFICER",
+  "JANITOR",
+  "CLEANER",
+  "FACILITY_ATTENDANT",
+  "GDA",
+  "NURSE_ASSISTANT",
+  "HOSPITAL_ATTENDANT",
+];
+const intake = [
+  "name",
+  "father_name",
+  "aadhaar_no",
+  "phone",
+  "client_id",
+  "branch",
+];
+const groups = [
+  [
+    "Personal information",
+    [
+      "name",
+      "father_name",
+      "phone",
+      "dob",
+      "gender",
+      "marital_status",
+      "aadhaar_no",
+      "pan_no",
+      "permanent_address",
+      "present_address",
+    ],
+  ],
+  [
+    "Employment",
+    [
+      "designation",
+      "client_id",
+      "branch",
+      "site_id",
+      "joining_date",
+      "vertical",
+      "category",
+      "uan",
+      "esic_number",
+    ],
+  ],
+  [
+    "Emergency contact",
+    ["emergency_name", "emergency_contact", "emergency_relation"],
+  ],
+  [
+    "Bank details",
+    ["bank_account_no", "bank_ifsc", "bank_name", "bank_branch"],
+  ],
+  [
+    "Nominee",
+    [
+      "nominee_name",
+      "nominee_relation",
+      "nominee_dob",
+      "nominee_aadhaar",
+      "nominee_percentage",
+    ],
+  ],
+  [
+    "Gunman information",
+    [
+      "gun_license_no",
+      "arms_issuing_authority",
+      "gun_license_expiry",
+      "arms_caliber",
+      "weapon_serial_no",
+      "ammunition_count",
+      "jurisdiction_limits",
+    ],
+  ],
+  [
+    "Uniform issue",
+    [
+      "uniform_shirt",
+      "uniform_trousers",
+      "uniform_shoes",
+      "uniform_belt",
+      "uniform_cap",
+      "uniform_issue_date",
+      "uniform_total_cost",
+      "uniform_monthly_emi",
+    ],
+  ],
+  ["Additional notes", ["notes"]],
+];
+const labels = {
+  name: "Employee name",
+  father_name: "Father’s name",
+  aadhaar_no: "Aadhaar number",
+  client_id: "Client",
+  branch: "Company branch",
+  site_id: "Client site",
+  bank_ifsc: "IFSC",
+  bank_account_no: "Bank account number",
+  bank_branch: "Bank branch",
+  dob: "Date of birth",
+  uan: "UAN",
+  esic_number: "ESIC number",
+  vertical: "Service vertical",
+};
+const label = (key) =>
+  labels[key] || key.replaceAll("_", " ").replace(/^./, (x) => x.toUpperCase());
+const errorText = (e) => {
+  const d = e.response?.data?.detail;
+  if (typeof d === "string") return d;
+  if (d?.missing_fields)
+    return `Complete: ${d.missing_fields.join(", ") || "all details"}. Required documents: ${d.missing_documents.join(", ") || "none"}.`;
+  return "Unable to complete the request. Check the details and retry.";
 };
 
-const EMPTY_ADVANCED = {
-  nominee_name: '', nominee_relation: '', nominee_dob: '', nominee_aadhaar: '', nominee_percentage: '100',
-  bank_account_no: '', bank_name: '', bank_branch: '', bank_ifsc: '',
-  gun_license_no: '', arms_issuing_authority: '', gun_license_expiry: '', arms_caliber: '',
-  weapon_serial_no: '', ammunition_count: '',
-  uniform_shirt: false, uniform_trousers: false, uniform_shoes: false, uniform_belt: false, uniform_cap: false,
-  uniform_total_cost: '', uniform_monthly_emi: '',
-  police_station: '', police_verification_expiry: '', medical_exam_date: '', medical_fitness_expiry: '',
-  psara_batch_no: '', psara_skill_level: '', psara_training_expiry: '',
-  form11_uploaded: false, passbook_uploaded: false, gun_license_uploaded: false,
-};
-
-const DOCUMENT_TYPES = [
-  ['FORM_11', 'Form 11', true],
-  ['FORM_11A', 'Form 11A', false],
-  ['POLICE_VERIFICATION', 'Police Verification', true],
-  ['MEDICAL_FITNESS', 'Medical / Fitness Certificate', true],
-  ['ESIC_FORM', 'ESIC Form', false],
-  ['BANK_PASSBOOK', 'Bank Passbook', true],
-  ['BANK_CHEQUE', 'Cancelled Cheque', false],
-  ['AADHAAR', 'Aadhaar Card', true],
-  ['PAN', 'PAN Card', true],
-  ['ADDRESS_PROOF', 'Address Proof', false],
-  ['PSARA_CERTIFICATE', 'PSARA Certificate', false],
-  ['GUN_LICENSE', 'Gun Licence', false],
-];
-
-const SUBTABS = [
-  ['onboarding', 'Onboarding Workflow', UserRound],
-  ['master', 'Employee Master', UserRound],
-  ['compliance', 'Compliance & Documents', ShieldCheck],
-  ['attendance', 'Reports & Attendance', ClipboardCheck],
-  ['payroll', 'Payroll & Salary', WalletCards],
-];
-
-const CATEGORY_OPTIONS = ['GUARD', 'GUNMAN', 'SUPERVISOR', 'FIELD_OFFICER', 'JANITOR', 'CLEANER', 'FACILITY_ATTENDANT', 'GDA', 'NURSE_ASSISTANT', 'HOSPITAL_ATTENDANT'];
-
-function verhoeff(number) {
-  if (!/^\d{12}$/.test(number)) return false;
-  const d=[[0,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4],[5,8,0,3,7,9,1,6,4,2],[8,7,9,0,6,4,3,5,2,1],[6,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4],[5,8,0,3,7,9,1,6,4,2],[8,7,9,0,6,4,3,5,2,1],[6,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4]];
-  const p=[[0,1,2,3,4,5,6,7,8,9],[0,5,7,8,9,4,2,1,3,6],[0,8,1,4,6,3,5,9,7,2],[0,9,4,7,2,6,3,8,5,1],[0,4,8,1,6,2,9,5,7,3],[0,2,9,5,1,7,4,8,6,3],[0,7,3,6,4,5,2,9,8,1],[0,3,5,2,7,9,8,6,1,4]];
-  let c=0;
-  [...number].reverse().forEach((n,i)=>{ c=d[c][p[i%8][Number(n)]]; });
-  return c===0;
+function Field({
+  name,
+  value,
+  onChange,
+  options,
+  profile = {},
+  required = false,
+}) {
+  let choices = null;
+  if (name === "client_id")
+    choices = options.clients.map((x) => [x.id, x.company_name]);
+  if (name === "site_id")
+    choices = options.sites
+      .filter(
+        (x) =>
+          String(x.client_id) === String(profile.client_id) &&
+          (!x.branch || x.branch === profile.branch),
+      )
+      .map((x) => [x.id, x.site_name]);
+  if (name === "branch")
+    choices = options.branches.map((x) => [x.code, x.name]);
+  if (name === "gender")
+    choices = ["MALE", "FEMALE", "OTHER"].map((x) => [x, x]);
+  if (name === "category")
+    choices = categories.map((x) => [x, x.replaceAll("_", " ")]);
+  if (name === "vertical")
+    choices = ["SECURITY", "HOUSEKEEPING", "NURSING"].map((x) => [x, x]);
+  if (name === "marital_status")
+    choices = ["SINGLE", "MARRIED", "WIDOWED", "DIVORCED"].map((x) => [x, x]);
+  const checkbox =
+    name.startsWith("uniform_") &&
+    ![
+      "uniform_issue_date",
+      "uniform_total_cost",
+      "uniform_monthly_emi",
+    ].includes(name);
+  const date =
+    name === "dob" ||
+    name.endsWith("_date") ||
+    name.endsWith("_expiry") ||
+    name === "nominee_dob";
+  return (
+    <label className="block text-xs font-medium text-slate-600">
+      <span className="mb-1 block">
+        {label(name)}
+        {required ? " *" : ""}
+      </span>
+      {choices ? (
+        <select
+          required={required}
+          className={inputClass}
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value="">Select</option>
+          {choices.map(([id, title]) => (
+            <option key={id} value={id}>
+              {title}
+            </option>
+          ))}
+        </select>
+      ) : checkbox ? (
+        <input
+          type="checkbox"
+          checked={Boolean(value)}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+      ) : name.includes("address") || name === "notes" ? (
+        <textarea
+          className={inputClass}
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      ) : (
+        <input
+          required={required}
+          className={inputClass}
+          type={date ? "date" : "text"}
+          inputMode={
+            name.includes("aadhaar") ||
+            name === "phone" ||
+            name === "bank_account_no"
+              ? "numeric"
+              : undefined
+          }
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+    </label>
+  );
 }
 
 export default function Employees() {
+  const { can } = useAccess();
+  const { user } = useAuth();
+  const [tab, setTab] = useState("master");
   const [rows, setRows] = useState([]);
-  const [staff, setStaff] = useState([]);
-  const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('ALL');
-  const [subtab, setSubtab] = useState('master');
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY_MASTER);
-  const [advanced, setAdvanced] = useState(EMPTY_ADVANCED);
-  const [saving, setSaving] = useState(false);
-  const [photo, setPhoto] = useState('');
-  const [ifscState, setIfscState] = useState({ state: 'idle', message: '' });
-  const [createdEmployee, setCreatedEmployee] = useState(null);
-  const [documents, setDocuments] = useState([]);
-  const [documentBusy, setDocumentBusy] = useState(false);
-
-  async function load() {
-    setLoading(true);
-    setError('');
-    try {
-      const [employees, staffRows, clientsRows] = await Promise.all([
-        api.get('/erp/employees'),
-        api.get('/staff').catch(() => ({ data: [] })),
-        api.get('/clients/').catch(() => ({ data: [] })),
-      ]);
-      setRows(employees.data || []);
-      setStaff(staffRows.data || []);
-      setClients(clientsRows.data || []);
-    } catch (e) {
-      setError(e.response?.data?.detail || 'Unable to load employee master.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { load(); }, []);
-
-  const staffByEmployee = useMemo(() => {
-    const map = {};
-    staff.forEach((s) => { map[String(s.employee_id)] = s; });
-    return map;
-  }, [staff]);
-
-  const filtered = rows.filter((x) => {
-    const q = search.toLowerCase();
-    const matchesSearch = [x.employee_code, x.name, x.phone, x.designation, x.branch, x.category]
-      .some((v) => String(v || '').toLowerCase().includes(q));
-    const matchesStatus = status === 'ALL' || String(x.status || '').toUpperCase() === status;
-    return matchesSearch && matchesStatus;
+  const [options, setOptions] = useState({
+    clients: [],
+    sites: [],
+    branches: [],
+    approvers: [],
   });
-
-  const counts = useMemo(() => ({
-    total: rows.length,
-    active: rows.filter((x) => String(x.status).toLowerCase() === 'active').length,
-    bench: rows.filter((x) => String(x.status).toLowerCase() === 'bench').length,
-    inactive: rows.filter((x) => ['inactive', 'terminated'].includes(String(x.status).toLowerCase())).length,
-  }), [rows]);
-
-  function updateMaster(key, value) { setForm((f) => ({ ...f, [key]: value })); }
-  function updateAdvanced(key, value) { setAdvanced((f) => ({ ...f, [key]: value })); }
-
-  async function validateIfsc() {
-    const code = advanced.bank_ifsc.trim().toUpperCase();
-    if (!code) {
-      setIfscState({ state: 'idle', message: '' });
-      return false;
-    }
-    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(code)) {
-      setIfscState({ state: 'error', message: 'Invalid IFSC format. Expected 11 characters, e.g. SBIN0001234.' });
-      return false;
-    }
-    setIfscState({ state: 'checking', message: 'Checking IFSC against the approved bank database…' });
+  const [approvals, setApprovals] = useState([]);
+  const [rules, setRules] = useState([]);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    q: "",
+    status: "",
+    branch: "",
+    site_id: "",
+    designation: "",
+  });
+  const [intimation, setIntimation] = useState({});
+  const [record, setRecord] = useState(null);
+  const [form, setForm] = useState({});
+  const [dirty, setDirty] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [docForm, setDocForm] = useState({
+    document_type: "PHOTO",
+    issue_date: "",
+    expiry_date: "",
+    document_number: "",
+    issuing_authority: "",
+  });
+  const [file, setFile] = useState(null);
+  const [fileKey, setFileKey] = useState(0);
+  const [remarks, setRemarks] = useState("");
+  const [stateForm, setStateForm] = useState({
+    status: "INACTIVE",
+    reason: "",
+  });
+  const [report, setReport] = useState({
+    kind: "master",
+    start: "",
+    end: "",
+    days: 60,
+  });
+  const [reportRows, setReportRows] = useState([]);
+  const [reportLoaded, setReportLoaded] = useState(false);
+  const [alerts, setAlerts] = useState([]);
+  const [code, setCode] = useState("");
+  const load = useCallback(async () => {
+    const [directory, lookups, inbox, categories, compliance] =
+      await Promise.all([
+        api.get("/erp/employees"),
+        api.get("/erp/employees/options"),
+        api.get("/erp/employees/workflow/approvals"),
+        api.get("/erp/employees/workflow/approval-categories"),
+        api.get("/erp/employees/compliance"),
+      ]);
+    setRows(directory.data);
+    setOptions(lookups.data);
+    setApprovals(inbox.data);
+    setRules(categories.data);
+    setAlerts(compliance.data);
+    setLoading(false);
+  }, []);
+  useEffect(() => {
+    load().catch((e) => {
+      setError(errorText(e));
+      setLoading(false);
+    });
+  }, [load]);
+  const run = async (fn) => {
+    setBusy(true);
+    setError("");
+    setMessage("");
     try {
-      const r = await api.get('/erp/ifsc/validate', { params: { ifsc: code } });
-      if (r.data?.valid === true) {
-        setIfscState({ state: 'valid', message: r.data.bank_name ? `Verified — ${r.data.bank_name}` : 'IFSC verified.' });
-        return true;
-      }
-      setIfscState({ state: 'error', message: 'IFSC was not found in the approved bank database. Submission is blocked.' });
-      return false;
+      await fn();
     } catch (e) {
-      setIfscState({
-        state: 'error',
-        message: e.response?.data?.detail || 'IFSC database validation is unavailable. Submission is blocked until it can be verified.',
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const openRecord = async (id) => {
+    const [r, docs, h] = await Promise.all([
+      api.get(`/erp/employees/workflow/joining/${id}`),
+      api.get(`/erp/employees/${id}/documents`),
+      api.get(`/erp/employees/${id}/history`),
+    ]);
+    setRecord(r.data);
+    setForm(r.data.profile);
+    setDocuments(docs.data);
+    setHistory(h.data);
+    setDirty(false);
+    setRemarks("");
+    setFile(null);
+    setFileKey((k) => k + 1);
+  };
+  const editable =
+    record &&
+    ["DRAFT", "REJECTED"].includes(record.joining_status) &&
+    can("employees.edit");
+  const submittedApproval = approvals.find((x) => x.employee_id === record?.id);
+  const update = (key, value) => {
+    setForm((p) => ({
+      ...p,
+      [key]: value,
+      ...(["client_id", "branch"].includes(key) ? { site_id: null } : {}),
+    }));
+    setDirty(true);
+  };
+  const params = () =>
+    Object.fromEntries(
+      Object.entries({ ...filters, ...report }).filter(([, v]) => v !== ""),
+    );
+  const filtered = rows.filter(
+    (r) =>
+      (!filters.status || r.status.toUpperCase() === filters.status) &&
+      (!filters.branch || r.branch === filters.branch) &&
+      (!filters.site_id || String(r.site_id) === filters.site_id) &&
+      (!filters.designation || r.designation === filters.designation) &&
+      (!filters.q ||
+        [r.name, r.employee_code, r.phone].some((v) =>
+          String(v || "")
+            .toLowerCase()
+            .includes(filters.q.toLowerCase()),
+        )),
+  );
+  const save = () =>
+    run(async () => {
+      await api.patch(`/erp/employees/workflow/joining/${record.id}`, {
+        version: record.version,
+        profile: form,
       });
-      return false;
-    }
-  }
-
-  async function save(e) {
-    e.preventDefault();
-    setSaving(true);
-    setError('');
-
-    const aadhaar = String(form.aadhaar_no || '').replace(/\s/g, '');
-    if (aadhaar && !verhoeff(aadhaar)) {
-      setError('Aadhaar number failed the 12-digit Verhoeff checksum validation.');
-      setSaving(false);
-      setSubtab('master');
-      return;
-    }
-
-    const bankRequired = Boolean(advanced.bank_account_no || advanced.bank_name || advanced.bank_branch || advanced.bank_ifsc);
-    if (bankRequired) {
-      const ifscOk = await validateIfsc();
-      if (!ifscOk) {
-        setSaving(false);
-        return;
-      }
-    }
-
-    try {
-      const created = await api.post('/erp/employees', {
-        ...form,
-        ...advanced,
-        employee_code: undefined,
-        intimation_id: form.intimation_id || undefined,
-        dob: form.dob || undefined,
-        gender: form.gender || undefined,
-        designation: form.designation || undefined,
-        client_id: form.client_id ? Number(form.client_id) : undefined,
-        site_id: form.site_id ? Number(form.site_id) : undefined,
-        joining_date: form.joining_date || undefined,
-        category: form.category || undefined,
-        aadhaar_no: aadhaar || undefined,
-        pan_no: form.pan_no || undefined,
-        permanent_address: form.permanent_address || undefined,
-        present_address: form.present_address || undefined,
-        emergency_contact: form.emergency_contact || undefined,
-        marital_status: form.marital_status || undefined,
-        bank_ifsc: advanced.bank_ifsc?.trim().toUpperCase() || undefined,
-        ifsc_verified: !bankRequired || ifscState.state === 'valid',
-      });
-
-      setCreatedEmployee(created.data);
-      setDocuments([]);
-      await loadDocuments(created.data.id);
-      setForm(EMPTY_MASTER);
-      setAdvanced(EMPTY_ADVANCED);
-      setPhoto('');
-      setIfscState({ state: 'idle', message: '' });
-      setSectionForDocuments();
+      await openRecord(record.id);
       await load();
-    } catch (e) {
-      setError(e.response?.data?.detail || 'Unable to create employee.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function loadDocuments(employeeId) {
-    if (!employeeId) return;
-    try {
-      const r = await api.get(`/erp/employees/${employeeId}/documents`);
-      setDocuments(r.data || []);
-    } catch (e) {
-      setError(e.response?.data?.detail || 'Unable to load employee documents.');
-    }
-  }
-
-  async function uploadDocument(file, documentType) {
-    if (!createdEmployee?.id || !file) return;
-    setDocumentBusy(true);
-    setError('');
-    try {
-      const body = new FormData();
-      body.append('document_type', documentType);
-      body.append('file', file);
-      const r = await api.post(`/erp/employees/${createdEmployee.id}/documents`, body, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      setMessage("Employee draft saved. Continue this file anytime.");
+    });
+  const submit = () =>
+    run(async () => {
+      await api.post(`/erp/employees/workflow/joining/${record.id}/submit`, {
+        version: record.version,
       });
-      setDocuments((items) => [r.data, ...items]);
-    } catch (e) {
-      setError(e.response?.data?.detail || 'Document upload failed.');
-    } finally {
-      setDocumentBusy(false);
-    }
-  }
-
-  async function openDocument(documentId) {
-    if (!createdEmployee?.id) return;
-    try {
-      const r = await api.post(`/erp/employees/${createdEmployee.id}/documents/${documentId}/sign`);
-      window.open(r.data.url, '_blank', 'noopener,noreferrer');
-    } catch (e) {
-      setError(e.response?.data?.detail || 'Unable to open document.');
-    }
-  }
-
-  function setSectionForDocuments() {
-    setOpen(true);
-    setTimeout(() => {
-      const event = new CustomEvent('destinlane-employee-documents');
-      window.dispatchEvent(event);
-    }, 0);
-  }
-
-  function openCreate() {
-    setForm({ ...EMPTY_MASTER, employee_code: '', intimation_id: '' });
-    setAdvanced(EMPTY_ADVANCED);
-    setPhoto('');
-    setIfscState({ state: 'idle', message: '' });
-    setCreatedEmployee(null);
-    setDocuments([]);
-    setOpen(true);
-  }
-
+      await openRecord(record.id);
+      await load();
+      setMessage(
+        user.role === "OWNER"
+          ? "Employee approved and activated."
+          : "Employee file sent to the assigned approver.",
+      );
+    });
+  const decision = (decision) =>
+    run(async () => {
+      await api.post(
+        `/erp/employees/workflow/approvals/${submittedApproval.id}/decision`,
+        { decision, remarks },
+      );
+      await openRecord(record.id);
+      await load();
+      setMessage(
+        decision === "REJECT"
+          ? "File returned with remarks. The employee ID is retained."
+          : "Approval recorded.",
+      );
+    });
+  const download = (format) =>
+    run(async () => {
+      const r = await api.get("/erp/employees/reports/export", {
+        params: { ...params(), format },
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(r.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `employee-${report.kind}.${format}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+  const refreshDocs = async () => {
+    await openRecord(record.id);
+    await load();
+  };
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="space-y-5">
+        <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Workforce / Employee Management</div>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Employee Management</h1>
-            <p className="mt-1 text-sm text-slate-500">Complete employee master, compliance, attendance and payroll control centre.</p>
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              Deployed workforce
+            </p>
+            <h1 className="mt-1 text-3xl font-semibold">Employee Management</h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Intimation → Joining bucket → Complete employee file → Assigned
+              approval
+            </p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={load} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
-              <RefreshCw className="h-4 w-4" /> Refresh
-            </button>
-
-          </div>
+          <button
+            className={buttonClass}
+            disabled={busy}
+            onClick={() => run(load)}
+          >
+            Refresh
+          </button>
         </header>
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Metric icon={UsersRound} label="Total Employees" value={counts.total} />
-          <Metric icon={CheckCircle2} label="Active" value={counts.active} />
-          <Metric icon={AlertTriangle} label="Bench / Restricted" value={counts.bench} />
-          <Metric icon={LockKeyhole} label="Inactive / Terminated" value={counts.inactive} />
-        </div>
-
-        <nav className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
-          <div className="flex min-w-max gap-1">
-            {SUBTABS.map(([id, label, Icon]) => (
-              <button key={id} onClick={() => setSubtab(id)}
-                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${subtab === id ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}>
-                <Icon className="h-4 w-4" /> {label}
-              </button>
-            ))}
-          </div>
-        </nav>
-
-        {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
-
-        {subtab === 'onboarding' && <EmployeeOnboardingWorkflow />}
-
-        {subtab === 'master' && (
-          <section className="space-y-4">
-            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, employee ID, phone, designation, client…" className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-slate-400" />
-              </div>
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700">
-                <option value="ALL">All statuses</option><option value="ACTIVE">Active</option><option value="BENCH">Bench</option><option value="INACTIVE">Inactive</option><option value="TERMINATED">Terminated</option>
-              </select>
-              <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700"><Download className="h-4 w-4" /> Export</button>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[
+            ["All employees", rows.length],
+            [
+              "Active",
+              rows.filter((r) => r.status.toUpperCase() === "ACTIVE").length,
+            ],
+            [
+              "Joining / approval",
+              rows.filter((r) =>
+                ["DRAFT", "PENDING_APPROVAL", "REJECTED"].includes(
+                  r.status.toUpperCase(),
+                ),
+              ).length,
+            ],
+            [
+              "Bench",
+              rows.filter((r) => r.status.toUpperCase() === "BENCH").length,
+            ],
+          ].map(([title, count]) => (
+            <div key={title} className="rounded-xl border bg-white p-4">
+              <p className="text-xs text-slate-500">{title}</p>
+              <p className="mt-1 text-2xl font-semibold">{count}</p>
             </div>
-
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <table className="min-w-[1050px] w-full text-left text-sm">
-                <thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                  {['Employee', 'ID / Intimation', 'Designation', 'Client / Site', 'Status', 'Compliance', 'Action'].map((h) => <th key={h} className="px-4 py-3.5">{h}</th>)}
-                </tr></thead>
-                <tbody>
-                  {loading ? <tr><td colSpan="7" className="px-4 py-12 text-center text-slate-400">Loading employee master…</td></tr> :
-                    filtered.map((x) => {
-                      const s = staffByEmployee[String(x.id)];
-                      const locked = s?.is_bench_locked || String(x.status).toLowerCase() === 'bench';
-                      return <tr key={x.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70">
-                        <td className="px-4 py-4"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><UserRound className="h-5 w-5" /></div><div><div className="font-semibold text-slate-900">{x.name}</div><div className="text-xs text-slate-500">{x.phone || 'No phone'}</div></div></div></td>
-                        <td className="px-4 py-4"><div className="font-mono text-xs font-semibold text-slate-800">{x.employee_code || '—'}</div><div className="mt-1 text-[11px] text-slate-400">{x.intimation_id || 'Intimation pending'}</div></td>
-                        <td className="px-4 py-4"><div className="font-medium text-slate-800">{x.designation || '—'}</div><div className="text-xs text-slate-400">{x.category || '—'}</div></td>
-                        <td className="px-4 py-4"><div className="font-medium text-slate-700">{x.client_name || clients.find((c) => String(c.id) === String(x.client_id))?.company_name || 'Client not mapped'}</div><div className="text-xs text-slate-400">{x.site_id || 'Site not allocated'}</div></td>
-                        <td className="px-4 py-4"><StatusBadge value={locked ? 'BENCH' : String(x.status || 'UNKNOWN').toUpperCase()} /></td>
-                        <td className="px-4 py-4">{locked ? <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600"><AlertTriangle className="h-3.5 w-3.5" /> Action required</span> : <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600"><BadgeCheck className="h-3.5 w-3.5" /> Clear</span>}</td>
-                        <td className="px-4 py-4"><button className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-slate-950">View <ChevronRight className="h-3.5 w-3.5" /></button></td>
-                      </tr>;
-                    })}
-                  {!loading && !filtered.length && <tr><td colSpan="7" className="px-4 py-12 text-center text-slate-400">No employees match the selected filters.</td></tr>}
-                </tbody>
-              </table>
+          ))}
+        </div>
+        <nav className="flex flex-wrap gap-2" aria-label="Employee sections">
+          {tabs.map(([key, title]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={
+                tab === key
+                  ? buttonClass
+                  : "rounded-lg border bg-white px-4 py-2 text-sm"
+              }
+            >
+              {title}
+            </button>
+          ))}
+        </nav>
+        {error && (
+          <p
+            role="alert"
+            className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
+          >
+            {error}
+          </p>
+        )}
+        {message && (
+          <p
+            role="status"
+            className="rounded-lg bg-green-50 p-3 text-sm text-green-800"
+          >
+            {message}
+          </p>
+        )}
+        {(tab === "master" || tab === "reports") && (
+          <div className="grid gap-3 rounded-xl border bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
+            <input
+              aria-label="Search employee"
+              className={inputClass}
+              placeholder="Search name, ID or phone"
+              value={filters.q}
+              onChange={(e) => setFilters((p) => ({ ...p, q: e.target.value }))}
+            />
+            <select
+              aria-label="Status filter"
+              className={inputClass}
+              value={filters.status}
+              onChange={(e) =>
+                setFilters((p) => ({ ...p, status: e.target.value }))
+              }
+            >
+              <option value="">All statuses</option>
+              {[
+                "DRAFT",
+                "PENDING_APPROVAL",
+                "REJECTED",
+                "ACTIVE",
+                "BENCH",
+                "INACTIVE",
+                "TERMINATED",
+              ].map((x) => (
+                <option key={x}>{x}</option>
+              ))}
+            </select>
+            <select
+              aria-label="Branch filter"
+              className={inputClass}
+              value={filters.branch}
+              onChange={(e) =>
+                setFilters((p) => ({
+                  ...p,
+                  branch: e.target.value,
+                  site_id: "",
+                }))
+              }
+            >
+              <option value="">All branches</option>
+              {options.branches.map((x) => (
+                <option key={x.code} value={x.code}>
+                  {x.name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Site filter"
+              className={inputClass}
+              value={filters.site_id}
+              onChange={(e) =>
+                setFilters((p) => ({ ...p, site_id: e.target.value }))
+              }
+            >
+              <option value="">All sites</option>
+              {options.sites
+                .filter((x) => !filters.branch || x.branch === filters.branch)
+                .map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.site_name}
+                  </option>
+                ))}
+            </select>
+            <input
+              aria-label="Designation filter"
+              className={inputClass}
+              placeholder="Designation (exact)"
+              value={filters.designation}
+              onChange={(e) =>
+                setFilters((p) => ({ ...p, designation: e.target.value }))
+              }
+            />
+          </div>
+        )}
+        {tab === "master" && (
+          <>
+            <EmployeeTable
+              rows={filtered}
+              loading={loading}
+              onOpen={(id) => run(() => openRecord(id))}
+            />
+            <div className="flex flex-wrap gap-2 rounded-xl border bg-white p-4">
+              <input
+                aria-label="Employee code authenticity check"
+                className={inputClass + " max-w-xs"}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="E-DAS-0070"
+              />
+              <button
+                className={buttonClass}
+                disabled={busy || !code}
+                onClick={() =>
+                  run(async () => {
+                    const { data } = await api.get(
+                      "/erp/employees/code-check",
+                      { params: { code } },
+                    );
+                    setMessage(
+                      data.registered
+                        ? `Registered: ${data.employee.employee_code} — ${data.employee.name}`
+                        : data.valid_format
+                          ? "Correct format, but this ID is not registered."
+                          : "Invalid employee ID format.",
+                    );
+                  })
+                }
+              >
+                Check ID
+              </button>
+            </div>
+          </>
+        )}
+        {tab === "creation" && (
+          <>
+            <section className="rounded-xl border bg-white p-5">
+              <h2 className="text-lg font-semibold">Employee intimation</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Submitting these six details issues a permanent employee ID and
+                adds the file to the joining bucket. Collect the physical file,
+                then complete the details anytime.
+              </p>
+              {(!options.clients.length || !options.branches.length) && (
+                <p className="mt-3 text-sm text-amber-700">
+                  Add an active client and company branch before submitting
+                  intimation.
+                </p>
+              )}
+              {can("employees.create") && (
+                <form
+                  className="mt-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    run(async () => {
+                      const { data } = await api.post(
+                        "/erp/employees/workflow/intimations",
+                        intimation,
+                      );
+                      setIntimation({});
+                      await load();
+                      await openRecord(data.id);
+                      setMessage(
+                        `Intimation submitted. Permanent employee ID: ${data.employee_code}`,
+                      );
+                    });
+                  }}
+                >
+                  <fieldset
+                    disabled={busy}
+                    className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                  >
+                    {intake.map((name) => (
+                      <Field
+                        key={name}
+                        name={name}
+                        value={intimation[name]}
+                        options={options}
+                        required
+                        onChange={(value) =>
+                          setIntimation((p) => ({ ...p, [name]: value }))
+                        }
+                      />
+                    ))}
+                  </fieldset>
+                  <button
+                    disabled={
+                      busy ||
+                      !options.clients.length ||
+                      !options.branches.length
+                    }
+                    className={buttonClass + " mt-4"}
+                  >
+                    Submit intimation & generate employee ID
+                  </button>
+                </form>
+              )}
+            </section>
+            <section>
+              <h2 className="mb-3 text-lg font-semibold">Joining bucket</h2>
+              <EmployeeTable
+                rows={rows.filter((r) => r.joining_status !== "APPROVED")}
+                loading={loading}
+                onOpen={(id) => run(() => openRecord(id))}
+              />
+            </section>
+            <section className="rounded-xl border bg-white p-5">
+              <h2 className="text-lg font-semibold">
+                Assigned joining approvals
+              </h2>
+              {!approvals.length ? (
+                <p className="mt-3 text-sm text-slate-500">
+                  No employee files awaiting your approval.
+                </p>
+              ) : (
+                approvals.map((x) => (
+                  <div
+                    key={x.id}
+                    className="mt-3 flex justify-between border-t pt-3 text-sm"
+                  >
+                    <span>
+                      {x.employee_code} · {x.name}
+                    </span>
+                    <button
+                      disabled={busy}
+                      onClick={() => run(() => openRecord(x.employee_id))}
+                      className="font-semibold text-teal-700"
+                    >
+                      Review file
+                    </button>
+                  </div>
+                ))
+              )}
+            </section>
+            {user.role === "OWNER" && (
+              <section className="rounded-xl border bg-white p-5">
+                <h2 className="text-lg font-semibold">
+                  Joining approver setup
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Assign each required step. The last assigned step must be
+                  final. Submissions retain their assigned chain even if this
+                  setup changes.
+                </p>
+                {rules.map((r) => (
+                  <div
+                    key={r.id}
+                    className="mt-4 flex flex-wrap items-center gap-3"
+                  >
+                    <span className="min-w-40 text-sm">{r.category_name}</span>
+                    <select
+                      aria-label={`Approver for ${r.category_name}`}
+                      className={inputClass + " max-w-xs"}
+                      value={r.approver_user_id || ""}
+                      onChange={(e) =>
+                        setRules((p) =>
+                          p.map((x) =>
+                            x.id === r.id
+                              ? {
+                                  ...x,
+                                  approver_user_id: e.target.value
+                                    ? Number(e.target.value)
+                                    : null,
+                                }
+                              : x,
+                          ),
+                        )
+                      }
+                    >
+                      <option value="">Not assigned</option>
+                      {options.approvers.map((x) => (
+                        <option key={x.id} value={x.id}>
+                          {x.name} · {x.role}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="text-sm">
+                      <input
+                        type="checkbox"
+                        checked={r.is_final_approver}
+                        onChange={(e) =>
+                          setRules((p) =>
+                            p.map((x) =>
+                              x.id === r.id
+                                ? { ...x, is_final_approver: e.target.checked }
+                                : e.target.checked
+                                  ? { ...x, is_final_approver: false }
+                                  : x,
+                            ),
+                          )
+                        }
+                      />{" "}
+                      Final approver
+                    </label>
+                    <button
+                      className={buttonClass}
+                      disabled={busy}
+                      onClick={() =>
+                        run(async () => {
+                          await api.put(
+                            `/erp/employees/workflow/approval-categories/${r.id}`,
+                            {
+                              approver_user_id: r.approver_user_id,
+                              is_final_approver: r.is_final_approver,
+                            },
+                          );
+                          await load();
+                          setMessage("Joining approval step saved.");
+                        })
+                      }
+                    >
+                      Save step
+                    </button>
+                  </div>
+                ))}
+              </section>
+            )}
+          </>
+        )}
+        {tab === "compliance" && (
+          <section className="rounded-xl border bg-white p-5">
+            <h2 className="text-lg font-semibold">
+              Compliance alerts & document files
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Police verification warnings: 45 days. Gun licence: 60 days.
+              Medical fitness: annual renewal. Missing or expired mandatory
+              documents block deployment.
+            </p>
+            <select
+              aria-label="Select employee document file"
+              className={inputClass + " mt-4 max-w-xl"}
+              value={record?.id || ""}
+              onChange={(e) => {
+                if (e.target.value) run(() => openRecord(e.target.value));
+              }}
+            >
+              <option value="">
+                Select an employee to upload or review documents
+              </option>
+              {rows.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.employee_code} · {r.name}
+                </option>
+              ))}
+            </select>
+            <div className="mt-4 space-y-3">
+              {alerts.map((r) => (
+                <div key={r.id} className="rounded-lg border p-3 text-sm">
+                  <button
+                    disabled={busy}
+                    onClick={() => run(() => openRecord(r.id))}
+                    className="font-semibold text-teal-700"
+                  >
+                    {r.employee_code} · {r.name}
+                  </button>
+                  <p className="mt-1 text-slate-600">
+                    {r.joining_incomplete
+                      ? "Joining approval incomplete. "
+                      : ""}
+                    {r.compliance_missing.length
+                      ? `Missing / expired: ${r.compliance_missing.join(", ")}.`
+                      : "Mandatory compliance clear."}
+                  </p>
+                  {r.reminders
+                    .filter(
+                      (d) =>
+                        d.document_type !== "POLICE_VERIFICATION" ||
+                        new Date(d.expiry_date) - new Date() <= 45 * 86400000,
+                    )
+                    .map((d) => (
+                      <p key={d.id} className="mt-1 text-amber-700">
+                        {d.document_type.replaceAll("_", " ")} · expires{" "}
+                        {d.expiry_date}
+                      </p>
+                    ))}
+                </div>
+              ))}
+              {!alerts.length && (
+                <p className="text-sm text-slate-500">No compliance alerts.</p>
+              )}
             </div>
           </section>
         )}
-
-        {subtab === 'compliance' && <CompliancePanel staff={staff} />}
-        {subtab === 'attendance' && <AttendancePanel rows={rows} />}
-        {subtab === 'payroll' && <PayrollPanel staff={staff} />}
+        {tab === "reports" && (
+          <section className="rounded-xl border bg-white p-5">
+            <h2 className="text-lg font-semibold">Employee reports</h2>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <select
+                aria-label="Report type"
+                className={inputClass + " max-w-xs"}
+                value={report.kind}
+                onChange={(e) => {
+                  setReport((p) => ({ ...p, kind: e.target.value }));
+                  setReportLoaded(false);
+                }}
+              >
+                {["master", "attendance", "compliance"].map((x) => (
+                  <option key={x} value={x}>
+                    {x.replace(/^./, (v) => v.toUpperCase())} report
+                  </option>
+                ))}
+              </select>
+              {report.kind === "attendance" && (
+                <>
+                  <label className="text-xs">
+                    From
+                    <input
+                      type="date"
+                      className={inputClass}
+                      value={report.start}
+                      onChange={(e) =>
+                        setReport((p) => ({ ...p, start: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="text-xs">
+                    To
+                    <input
+                      type="date"
+                      className={inputClass}
+                      value={report.end}
+                      onChange={(e) =>
+                        setReport((p) => ({ ...p, end: e.target.value }))
+                      }
+                    />
+                  </label>
+                </>
+              )}
+              {report.kind === "compliance" && (
+                <select
+                  aria-label="Compliance horizon"
+                  className={inputClass + " max-w-40"}
+                  value={report.days}
+                  onChange={(e) =>
+                    setReport((p) => ({ ...p, days: Number(e.target.value) }))
+                  }
+                >
+                  <option value={30}>Next 30 days</option>
+                  <option value={60}>Next 60 days</option>
+                </select>
+              )}
+              <button
+                className={buttonClass}
+                disabled={busy}
+                onClick={() =>
+                  run(async () => {
+                    const { data } = await api.get("/erp/employees/reports", {
+                      params: params(),
+                    });
+                    setReportRows(data);
+                    setReportLoaded(true);
+                  })
+                }
+              >
+                View report
+              </button>
+              {can("employees.export") &&
+                ["xlsx", "pdf", "csv"].map((x) => (
+                  <button
+                    key={x}
+                    className={buttonClass}
+                    disabled={busy}
+                    onClick={() => download(x)}
+                  >
+                    Export {x.toUpperCase()}
+                  </button>
+                ))}
+            </div>
+            {reportLoaded && (
+              <div className="mt-5">
+                <p className="mb-3 text-sm">
+                  {reportRows.length} recorded rows
+                  {report.kind === "attendance"
+                    ? ` · Present ${reportRows.filter((r) => ["PRESENT", "LATE", "HALF_DAY"].includes(r.status)).length} · Absent ${reportRows.filter((r) => r.status === "ABSENT").length} · Night ${reportRows.filter((r) => r.night_shift).length} · OT ${reportRows.reduce((s, r) => s + Number(r.overtime_hours || 0), 0).toFixed(2)} h · Late ${reportRows.filter((r) => Number(r.late_minutes) > 0).length}`
+                    : ""}
+                </p>
+                <div className="overflow-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr>
+                        {Object.keys(reportRows[0] || {})
+                          .filter(
+                            (k) =>
+                              ![
+                                "id",
+                                "compliance_missing",
+                                "reminders",
+                              ].includes(k),
+                          )
+                          .map((k) => (
+                            <th key={k} className="border-b p-2">
+                              {label(k)}
+                            </th>
+                          ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportRows.map((r, i) => (
+                        <tr key={i}>
+                          {Object.entries(r)
+                            .filter(
+                              ([k]) =>
+                                ![
+                                  "id",
+                                  "compliance_missing",
+                                  "reminders",
+                                ].includes(k),
+                            )
+                            .map(([k, v]) => (
+                              <td key={k} className="border-b p-2">
+                                {String(v ?? "—")}
+                              </td>
+                            ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {!reportRows.length && (
+                  <p className="text-sm text-slate-500">
+                    No records in this report. Unrecorded shifts are not counted
+                    as absence.
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
       </div>
-
-      {open && <EmployeeModal
-        form={form} advanced={advanced} photo={photo} setPhoto={setPhoto} clients={clients}
-        updateMaster={updateMaster} updateAdvanced={updateAdvanced}
-        ifscState={ifscState} validateIfsc={validateIfsc}
-        saving={saving} save={save} close={() => setOpen(false)}
-        createdEmployee={createdEmployee} documents={documents} documentBusy={documentBusy}
-        uploadDocument={uploadDocument} openDocument={openDocument}
-      />}
+      {record && (
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Employee file"
+        >
+          <div className="mx-auto max-w-5xl rounded-2xl bg-white p-5">
+            <div className="flex justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">
+                  {record.employee_code} · {record.name}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {record.intimation_id} · {record.joining_status} · Version{" "}
+                  {record.version}
+                </p>
+              </div>
+              <button
+                disabled={busy}
+                onClick={() => {
+                  if (
+                    !dirty ||
+                    window.confirm("Close without saving your changes?")
+                  )
+                    setRecord(null);
+                }}
+                className="text-sm font-semibold"
+              >
+                Close
+              </button>
+            </div>
+            <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs">
+              {record.joining_status === "APPROVED"
+                ? "Approved employee file. Identity and joining information are retained; renew compliance documents below."
+                : "Complete details and upload required documents. Pending files are locked until returned. Reviewers must verify all required documents before activation."}
+            </p>
+            {error && (
+              <p
+                role="alert"
+                className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+              >
+                {error}
+              </p>
+            )}
+            {message && (
+              <p
+                role="status"
+                className="mt-3 rounded-lg bg-green-50 p-3 text-sm text-green-800"
+              >
+                {message}
+              </p>
+            )}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                save();
+              }}
+              className="mt-5 space-y-5"
+            >
+              <fieldset disabled={busy || !editable}>
+                {groups
+                  .filter(
+                    ([title]) =>
+                      title !== "Gunman information" ||
+                      form.category === "GUNMAN",
+                  )
+                  .map(([title, fields]) => (
+                    <section key={title} className="mb-5">
+                      <h3 className="border-b pb-2 font-semibold">{title}</h3>
+                      <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {fields.map((name) => (
+                          <Field
+                            key={name}
+                            name={name}
+                            value={form[name]}
+                            options={options}
+                            profile={form}
+                            onChange={(value) => update(name, value)}
+                          />
+                        ))}
+                      </div>
+                      {title === "Bank details" && editable && (
+                        <button
+                          type="button"
+                          disabled={busy || !form.bank_ifsc}
+                          className={buttonClass + " mt-3"}
+                          onClick={() =>
+                            run(async () => {
+                              const { data } = await api.get(
+                                "/erp/employees/ifsc-check",
+                                { params: { code: form.bank_ifsc } },
+                              );
+                              if (!data.approved) {
+                                setMessage(
+                                  "IFSC is not in the approved bank database. You can save the draft; submission remains blocked.",
+                                );
+                                return;
+                              }
+                              setForm((p) => ({
+                                ...p,
+                                bank_ifsc: data.bank.ifsc_code,
+                                bank_name: data.bank.bank_name,
+                                bank_branch: data.bank.branch_name,
+                              }));
+                              setDirty(true);
+                              setMessage(
+                                "Approved IFSC matched. Bank and branch filled. Save this draft.",
+                              );
+                            })
+                          }
+                        >
+                          Verify IFSC & fill bank
+                        </button>
+                      )}
+                    </section>
+                  ))}
+              </fieldset>
+              {editable && (
+                <div className="flex flex-wrap gap-3">
+                  <button className={buttonClass} disabled={busy || !dirty}>
+                    Save draft
+                  </button>
+                  <button
+                    type="button"
+                    className={buttonClass}
+                    disabled={busy || dirty}
+                    onClick={submit}
+                  >
+                    {user.role === "OWNER"
+                      ? "Submit & activate"
+                      : "Submit for approval"}
+                  </button>
+                </div>
+              )}
+            </form>
+            {editable && (
+              <p className="mt-3 text-xs text-slate-500">
+                Still required:{" "}
+                {record.readiness.missing_fields.join(", ") ||
+                  "details complete"}{" "}
+                · Documents:{" "}
+                {record.readiness.missing_documents.join(", ") || "uploaded"}.
+                Save changes before submission.
+              </p>
+            )}
+            <section className="mt-6 border-t pt-5">
+              <h3 className="font-semibold">Private compliance documents</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                PDF, JPG, PNG or WEBP · maximum 3 MB · files stay private.
+                Medical fitness expires annually. Keep older documents when
+                uploading renewals.
+              </p>
+              {can("employees.create") &&
+                !["PENDING_APPROVAL", "TERMINATED"].includes(
+                  record.status.toUpperCase(),
+                ) && (
+                  <form
+                    className="mt-4"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      run(async () => {
+                        if (!file) return;
+                        const body = new FormData();
+                        Object.entries(docForm).forEach(([k, v]) => {
+                          if (v) body.append(k, v);
+                        });
+                        body.append("file", file);
+                        await api.post(
+                          `/erp/employees/${record.id}/documents`,
+                          body,
+                          {
+                            headers: { "Content-Type": "multipart/form-data" },
+                          },
+                        );
+                        await refreshDocs();
+                        setMessage(
+                          "Document uploaded. Verify it after checking the original file.",
+                        );
+                      });
+                    }}
+                  >
+                    <fieldset
+                      disabled={busy || dirty}
+                      className="grid gap-3 sm:grid-cols-3"
+                    >
+                      <label className="text-xs">
+                        Document type
+                        <select
+                          className={inputClass}
+                          value={docForm.document_type}
+                          onChange={(e) =>
+                            setDocForm((p) => ({
+                              ...p,
+                              document_type: e.target.value,
+                            }))
+                          }
+                        >
+                          {types.map((x) => (
+                            <option key={x}>{x}</option>
+                          ))}
+                        </select>
+                      </label>
+                      {[
+                        "document_number",
+                        "issuing_authority",
+                        "issue_date",
+                        "expiry_date",
+                      ].map((k) => (
+                        <label key={k} className="text-xs">
+                          {label(k)}
+                          <input
+                            className={inputClass}
+                            type={k.endsWith("_date") ? "date" : "text"}
+                            value={docForm[k]}
+                            onChange={(e) =>
+                              setDocForm((p) => ({ ...p, [k]: e.target.value }))
+                            }
+                          />
+                        </label>
+                      ))}
+                      <label className="text-xs">
+                        Upload document
+                        <input
+                          key={fileKey}
+                          required
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png,.webp"
+                          className={inputClass}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f && f.size > 3 * 1024 * 1024) {
+                              setError("Choose a document smaller than 3 MB.");
+                              setFile(null);
+                            } else setFile(f);
+                          }}
+                        />
+                      </label>
+                    </fieldset>
+                    <button
+                      className={buttonClass + " mt-3"}
+                      disabled={busy || dirty || !file}
+                    >
+                      Upload document
+                    </button>
+                  </form>
+                )}
+              <div className="mt-4 space-y-3">
+                {documents.map((d) => (
+                  <div key={d.id} className="rounded-lg border p-3 text-sm">
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <div>
+                        <strong>{d.document_type.replaceAll("_", " ")}</strong>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {d.original_filename} · {d.verification_status} ·{" "}
+                          {d.expiry_date
+                            ? `Expires ${d.expiry_date}`
+                            : "No expiry"}
+                        </p>
+                        {d.verification_notes && (
+                          <p className="mt-1 text-xs">{d.verification_notes}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          disabled={busy || dirty}
+                          className="text-teal-700"
+                          onClick={() =>
+                            run(async () => {
+                              const { data } = await api.post(
+                                `/erp/employees/${record.id}/documents/${d.id}/sign`,
+                              );
+                              window.open(
+                                data.url,
+                                "_blank",
+                                "noopener,noreferrer",
+                              );
+                            })
+                          }
+                        >
+                          Open
+                        </button>
+                        {can("employees.approve") &&
+                          (!submittedApproval ||
+                            submittedApproval.assigned_to === user.id ||
+                            user.role === "OWNER") && (
+                            <>
+                              <button
+                                disabled={busy || dirty}
+                                className="text-teal-700"
+                                onClick={() =>
+                                  run(async () => {
+                                    await api.patch(
+                                      `/erp/employees/${record.id}/documents/${d.id}/verify`,
+                                      { status: "VERIFIED" },
+                                    );
+                                    await refreshDocs();
+                                    setMessage("Document verified.");
+                                  })
+                                }
+                              >
+                                Verify
+                              </button>
+                              <button
+                                disabled={busy || dirty}
+                                className="text-red-700"
+                                onClick={() => {
+                                  const notes = window.prompt(
+                                    "Reason for rejecting this document",
+                                  );
+                                  if (notes)
+                                    run(async () => {
+                                      await api.patch(
+                                        `/erp/employees/${record.id}/documents/${d.id}/verify`,
+                                        { status: "REJECTED", notes },
+                                      );
+                                      await refreshDocs();
+                                    });
+                                }}
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {!documents.length && (
+                  <p className="text-sm text-slate-500">
+                    No documents uploaded.
+                  </p>
+                )}
+              </div>
+            </section>
+            {submittedApproval && can("employees.approve") && (
+              <section className="mt-6 rounded-xl bg-slate-50 p-4">
+                <h3 className="font-semibold">Joining approval</h3>
+                <p className="mt-2 text-xs">
+                  Review all details and documents. All required documents must
+                  be verified to approve.
+                </p>
+                <textarea
+                  aria-label="Approval or return remarks"
+                  className={inputClass + " mt-3"}
+                  placeholder="Approval notes / required return remarks"
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                />
+                <div className="mt-3 flex gap-3">
+                  <button
+                    disabled={busy}
+                    className={buttonClass}
+                    onClick={() => decision("APPROVE")}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    disabled={busy || !remarks.trim()}
+                    className={buttonClass}
+                    onClick={() => decision("REJECT")}
+                  >
+                    Return for correction
+                  </button>
+                </div>
+              </section>
+            )}
+            {record.joining_status === "APPROVED" &&
+              can("employees.edit") &&
+              ["OWNER", "SUPER_ADMIN", "ADMIN"].includes(user.role) && (
+                <section className="mt-6 border-t pt-4">
+                  <h3 className="font-semibold">Employment status</h3>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    <select
+                      aria-label="New employment status"
+                      className={inputClass + " max-w-xs"}
+                      value={stateForm.status}
+                      onChange={(e) =>
+                        setStateForm((p) => ({ ...p, status: e.target.value }))
+                      }
+                    >
+                      {["ACTIVE", "BENCH", "INACTIVE", "TERMINATED"].map(
+                        (x) => (
+                          <option key={x}>{x}</option>
+                        ),
+                      )}
+                    </select>
+                    <input
+                      aria-label="Status reason"
+                      className={inputClass + " max-w-sm"}
+                      placeholder="Required reason"
+                      value={stateForm.reason}
+                      onChange={(e) =>
+                        setStateForm((p) => ({ ...p, reason: e.target.value }))
+                      }
+                    />
+                    <button
+                      disabled={busy || !stateForm.reason.trim()}
+                      className={buttonClass}
+                      onClick={() =>
+                        run(async () => {
+                          await api.patch(
+                            `/erp/employees/${record.id}/status`,
+                            { ...stateForm, version: record.version },
+                          );
+                          await openRecord(record.id);
+                          await load();
+                          setMessage("Employment status updated and recorded.");
+                        })
+                      }
+                    >
+                      Update status
+                    </button>
+                  </div>
+                </section>
+              )}
+            <section className="mt-6 border-t pt-4">
+              <h3 className="font-semibold">Employee file history</h3>
+              <div className="mt-3 space-y-2 text-xs text-slate-500">
+                {history.map((h) => (
+                  <p key={h.id}>
+                    {new Date(h.created_at).toLocaleString()} ·{" "}
+                    {h.action.replaceAll("_", " ")} ·{" "}
+                    {h.changed_by_name || "System"}
+                    {h.details?.remarks ? ` · ${h.details.remarks}` : ""}
+                  </p>
+                ))}
+              </div>
+            </section>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 }
 
-function EmployeeModal({ form, advanced, photo, setPhoto, clients, updateMaster, updateAdvanced, ifscState, validateIfsc, saving, save, close, createdEmployee, documents, documentBusy, uploadDocument, openDocument }) {
-  const [section, setSection] = useState('identity');
-  useEffect(() => {
-    const handler = () => setSection('documents');
-    window.addEventListener('destinlane-employee-documents', handler);
-    return () => window.removeEventListener('destinlane-employee-documents', handler);
-  }, []);
-  const uniformItems = [['uniform_shirt', 'Shirt', 450], ['uniform_trousers', 'Trousers', 650], ['uniform_shoes', 'Shoes', 900], ['uniform_belt', 'Belt', 150], ['uniform_cap', 'Cap', 120]];
-  const uniformCost = uniformItems.reduce((sum, [key, , cost]) => sum + (advanced[key] ? cost : 0), 0);
-
-  const field = (key, label, opts = {}) => (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold text-slate-600">{label}{opts.required && <span className="text-rose-500"> *</span>}</span>
-      {opts.textarea ? <textarea value={form[key] ?? ''} onChange={(e) => updateMaster(key, e.target.value)} rows={3} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400" /> :
-        <input type={opts.type || 'text'} value={form[key] ?? ''} required={opts.required} onChange={(e) => updateMaster(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400" />}
-    </label>
+function EmployeeTable({ rows, loading, onOpen }) {
+  return (
+    <div className="overflow-auto rounded-xl border bg-white">
+      <table className="w-full min-w-[850px] text-left text-sm">
+        <thead className="bg-slate-50 text-xs text-slate-500">
+          <tr>
+            {[
+              "Employee",
+              "Employee ID",
+              "Client / branch",
+              "Designation",
+              "Status",
+              "File",
+            ].map((x) => (
+              <th key={x} className="p-4">
+                {x}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} className="border-t">
+              <td className="p-4 font-medium">
+                {r.name}
+                <p className="mt-1 text-xs text-slate-500">
+                  {r.phone} · {r.aadhaar_masked || "—"}
+                </p>
+              </td>
+              <td className="p-4 font-mono text-xs">
+                {r.employee_code}
+                <p className="mt-1 text-slate-500">{r.intimation_id}</p>
+              </td>
+              <td className="p-4">
+                {r.client_name || "—"}
+                <p className="text-xs text-slate-500">
+                  {r.branch} · {r.site_name || "Site not assigned"}
+                </p>
+              </td>
+              <td className="p-4">
+                {r.designation || "Joining details pending"}
+              </td>
+              <td className="p-4 text-xs">
+                {r.status}
+                <p className="mt-1 text-slate-500">{r.joining_status}</p>
+              </td>
+              <td className="p-4">
+                <button
+                  onClick={() => onOpen(r.id)}
+                  className="font-semibold text-teal-700"
+                >
+                  Open file
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {loading ? (
+        <p className="p-8 text-center text-sm text-slate-500">
+          Loading employees…
+        </p>
+      ) : (
+        !rows.length && (
+          <p className="p-8 text-center text-sm text-slate-500">
+            No employee records here yet.
+          </p>
+        )
+      )}
+    </div>
   );
-  const advField = (key, label, opts = {}) => (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold text-slate-600">{label}{opts.required && <span className="text-rose-500"> *</span>}</span>
-      <input type={opts.type || 'text'} value={advanced[key] ?? ''} required={opts.required} onChange={(e) => updateAdvanced(key, e.target.value)} onBlur={opts.onBlur} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400" />
-    </label>
-  );
-
-  return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 p-3 md:p-6">
-    <div className="mx-auto max-w-6xl overflow-hidden rounded-3xl bg-white shadow-2xl">
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 md:px-7">
-        <div><div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Employee onboarding</div><h2 className="mt-1 text-xl font-semibold text-slate-950">Create Employee Master</h2><p className="text-xs text-slate-500">Intimation, identity, KYC, bank, uniform and compliance capture.</p></div>
-        <button onClick={close} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
-      </div>
-
-      <div className="border-b border-slate-200 px-4 md:px-7">
-        <div className="flex gap-1 overflow-x-auto py-2">{[['identity','Identity'],['personal','Personal & KYC'],['nominee','Nominee'],['bank','Bank'],['arms','Arms'],['uniform','Uniform EMI'],['documents','Documents']].map(([id,label]) => <button type="button" key={id} onClick={() => setSection(id)} className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold ${section === id ? 'bg-slate-950 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>{label}</button>)}</div>
-      </div>
-
-      <form onSubmit={save} className="max-h-[72vh] overflow-y-auto p-5 md:p-7">
-        {section === 'identity' && <div className="space-y-6">
-          <SectionTitle icon={UserRound} title="General Information" subtitle="The Intimation ID is generated automatically by the onboarding workflow." />
-          <div className="grid gap-4 md:grid-cols-3">
-            {field('name','Full Name',{required:true})}{field('dob','Date of Birth',{type:'date',required:true})}
-            <SelectField label="Gender" value={form.gender} onChange={(v)=>updateMaster('gender',v)} options={['','Male','Female','Other']} required />
-            {field('designation','Designation',{required:true})}<SelectField label="Client" value={form.client_id} onChange={(v)=>updateMaster('client_id',v)} options={['',...clients.map((c)=>String(c.id))]} labels={['Select client',...clients.map((c)=>c.company_name)]} required />{field('joining_date','Joining Date',{type:'date',required:true})}
-            <SelectField label="Category" value={form.category} onChange={(v)=>updateMaster('category',v)} options={CATEGORY_OPTIONS} required />
-            {field('phone','Mobile Number',{required:true})}<div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"><div className="text-xs font-semibold text-slate-600">Employee Code</div><div className="mt-1 text-xs text-slate-500">Generated automatically after creation, e.g. EMP-001.</div></div>
-          </div>
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
-            <div className="flex items-center gap-4">
-              <div className="flex h-20 w-20 overflow-hidden items-center justify-center rounded-2xl bg-white border border-slate-200">{photo ? <img src={photo} className="h-full w-full object-cover" alt="Employee preview" /> : <Camera className="h-7 w-7 text-slate-300" />}</div>
-              <div><div className="font-semibold text-slate-800">Employee photograph</div><div className="mt-1 text-xs text-slate-500">Upload or update the profile photograph.</div><label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold"><Upload className="h-3.5 w-3.5" /> Choose photo<input type="file" accept="image/*" className="hidden" onChange={(e)=>{const f=e.target.files?.[0]; if(f)setPhoto(URL.createObjectURL(f));}} /></label></div>
-            </div>
-          </div>
-        </div>}
-
-        {section === 'personal' && <div className="space-y-6">
-          <SectionTitle icon={FileCheck2} title="Personal & KYC Details" subtitle="Aadhaar must pass the Verhoeff checksum before onboarding." />
-          <div className="grid gap-4 md:grid-cols-2">{field('aadhaar_no','Aadhaar Number',{required:true})}{field('pan_no','PAN',{required:true})}{field('permanent_address','Permanent Address',{textarea:true,required:true})}{field('present_address','Present Address',{textarea:true,required:true})}{field('emergency_contact','Emergency Contact',{required:true})}<SelectField label="Marital Status" value={form.marital_status} onChange={(v)=>updateMaster('marital_status',v)} options={['','Single','Married','Other']} /></div>
-        </div>}
-
-        {section === 'nominee' && <div className="space-y-6"><SectionTitle icon={UsersRound} title="Nominee Details" subtitle="Nominee allocation must total 100%." /><div className="grid gap-4 md:grid-cols-2">{advField('nominee_name','Nominee Name',{required:true})}{advField('nominee_relation','Relation',{required:true})}{advField('nominee_dob','Nominee DOB',{type:'date',required:true})}{advField('nominee_aadhaar','Nominee Aadhaar',{required:true})}{advField('nominee_percentage','Allocation Percentage',{type:'number',required:true})}</div></div>}
-
-        {section === 'bank' && <div className="space-y-6">
-          <SectionTitle icon={Landmark} title="Bank Account Setup" subtitle="Incorrect or unverified IFSC codes cannot be submitted." />
-          <div className="grid gap-4 md:grid-cols-2">{advField('bank_account_no','Account Number',{required:true})}{advField('bank_name','Bank Name',{required:true})}{advField('bank_branch','Branch Name',{required:true})}{advField('bank_ifsc','IFSC Code',{required:true,onBlur:validateIfsc})}</div>
-          <div className={`rounded-xl border px-4 py-3 text-sm ${ifscState.state === 'valid' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : ifscState.state === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
-            {ifscState.state === 'valid' ? <CheckCircle2 className="mr-2 inline h-4 w-4" /> : ifscState.state === 'error' ? <AlertTriangle className="mr-2 inline h-4 w-4" /> : <Landmark className="mr-2 inline h-4 w-4" />}
-            {ifscState.message || 'Enter an IFSC code and leave the field to run database validation.'}
-          </div>
-        </div>}
-
-        {section === 'arms' && <div className="space-y-6">
-          <SectionTitle icon={ShieldCheck} title="Arms Details" subtitle="Shown and required only where the employee category requires it." />
-          {form.category === 'GUNMAN' ? <div className="grid gap-4 md:grid-cols-2">{advField('gun_license_no','Gun License Number',{required:true})}{advField('arms_issuing_authority','Issuing Authority',{required:true})}{advField('gun_license_expiry','Expiry Date',{type:'date',required:true})}{advField('arms_caliber','Caliber',{required:true})}{advField('weapon_serial_no','Weapon Serial Number',{required:true})}{advField('ammunition_count','Ammunition Count',{type:'number',required:true})}</div> : <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">Arms fields are not applicable to the selected category. Select <strong>GUNMAN</strong> if an arms record is required.</div>}
-        </div>}
-
-        {section === 'documents' && <DocumentUploader employee={createdEmployee} documents={documents} busy={documentBusy} uploadDocument={uploadDocument} openDocument={openDocument} />}
-
-        {section === 'uniform' && <div className="space-y-6">
-          <SectionTitle icon={WalletCards} title="Dress / Uniform EMI Calculator" subtitle="Select issued items to calculate the recovery amount." />
-          <div className="grid gap-3 md:grid-cols-2">{uniformItems.map(([key,label,cost]) => <label key={key} className="flex items-center justify-between rounded-xl border border-slate-200 p-4"><span className="flex items-center gap-3"><input type="checkbox" checked={advanced[key]} onChange={(e)=>updateAdvanced(key,e.target.checked)} className="h-4 w-4 rounded border-slate-300" /><span className="text-sm font-semibold text-slate-700">{label}</span></span><span className="text-sm text-slate-500">₹{cost.toLocaleString('en-IN')}</span></label>)}</div>
-          <div className="grid gap-4 md:grid-cols-2">{advField('uniform_total_cost','Total Uniform Cost',{type:'number',required:true})}{advField('uniform_monthly_emi','Monthly EMI Recovery',{type:'number',required:true})}</div>
-          <div className="rounded-2xl bg-slate-950 p-5 text-white"><div className="text-xs text-slate-400">Selected item estimate</div><div className="mt-1 text-2xl font-semibold">₹{uniformCost.toLocaleString('en-IN')}</div><div className="mt-1 text-xs text-slate-400">Final recovery values are saved only through the payroll/uniform backend workflow.</div></div>
-        </div>}
-
-        <div className="mt-8 flex items-center justify-between border-t border-slate-200 pt-5">
-          <div className="text-xs text-slate-400">{createdEmployee ? <>Employee <strong>{createdEmployee.employee_code}</strong> is created. Upload documents and complete verification.</> : <>Required fields are marked <span className="text-rose-500">*</span>. Employee ID is generated by the backend.</>}</div>
-          <div className="flex gap-2"><button type="button" onClick={close} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600">{createdEmployee ? 'Finish' : 'Cancel'}</button>{!createdEmployee && <button disabled={saving} className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Create Employee Master'}</button>}</div>
-        </div>
-      </form>
-    </div>
-  </div>;
-}
-
-function CompliancePanel({ staff }) {
-  const today = Date.now();
-  const expiring = staff.flatMap((s) => [
-    ['Police Verification', s.police_verification_expiry, 45],
-    ['Medical & Fitness', s.medical_fitness_expiry, 30],
-    ['PSARA Training', s.psara_training_expiry, 30],
-    ['Gun License', s.gun_license_expiry, 60],
-  ].filter(([,d]) => d).map(([type,d,window]) => ({...s,type,date:d,window,days:Math.ceil((new Date(d)-today)/86400000)}))).filter(x => x.days <= x.window).sort((a,b)=>a.days-b.days);
-  return <section className="space-y-4"><div className="grid gap-3 md:grid-cols-3"><Metric icon={ShieldCheck} label="Profiles tracked" value={staff.length}/><Metric icon={AlertTriangle} label="Expiring / expired" value={expiring.length}/><Metric icon={LockKeyhole} label="Bench locked" value={staff.filter(s=>s.is_bench_locked).length}/></div><div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-slate-200 px-5 py-4"><div><h2 className="font-semibold text-slate-900">Compliance Expiry Summary</h2><p className="text-xs text-slate-500">30 / 45 / 60 day warning windows according to document type.</p></div><button className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold"><Download className="h-3.5 w-3.5"/> Export</button></div><table className="min-w-[760px] w-full text-sm"><thead><tr className="border-b border-slate-100 bg-slate-50 text-xs text-slate-500"><th className="px-5 py-3 text-left">Employee</th><th className="px-5 py-3 text-left">Document</th><th className="px-5 py-3 text-left">Expiry</th><th className="px-5 py-3 text-left">Status</th></tr></thead><tbody>{expiring.map((x,i)=><tr key={i} className="border-b border-slate-100"><td className="px-5 py-3 font-semibold">{x.name}<div className="text-xs font-normal text-slate-400">{x.employee_code}</div></td><td className="px-5 py-3">{x.type}</td><td className="px-5 py-3">{x.date}</td><td className="px-5 py-3"><StatusBadge value={x.days < 0 ? 'EXPIRED' : `${x.days} DAYS`} /></td></tr>)}{!expiring.length&&<tr><td colSpan="4" className="p-10 text-center text-sm text-slate-400">No tracked documents are currently inside a warning window.</td></tr>}</tbody></table></div></section>;
-}
-
-function AttendancePanel({ rows }) {
-  return <section className="space-y-4"><div className="grid gap-3 md:grid-cols-4"><Metric icon={CalendarDays} label="Employee records" value={rows.length}/><Metric icon={ClipboardCheck} label="Present days" value="—"/><Metric icon={CalendarDays} label="Night shifts" value="—"/><Metric icon={AlertTriangle} label="OT / exceptions" value="—"/></div><div className="grid gap-4 lg:grid-cols-2"><InfoCard icon={ClipboardCheck} title="Attendance Tracker" text="Daily and monthly duty logs, present days, night shifts, overtime and absenteeism will appear here once attendance records are linked to employee profiles."/><InfoCard icon={FileText} title="Master Directory Export" text="Export employee directory by branch, site, designation and active/inactive state to Excel or PDF."/><InfoCard icon={AlertTriangle} title="Late Coming & Shift Violations" text="Punch exceptions will be linked to site check-ins and surfaced for operations review."/><InfoCard icon={Download} title="Compliance Expiry Export" text="Generate a filtered 30 / 60 day compliance report for HR follow-up." /></div></section>;
-}
-
-function PayrollPanel({ staff }) {
-  return <section className="space-y-4"><div className="grid gap-3 md:grid-cols-4"><Metric icon={Banknote} label="Payroll profiles" value={staff.length}/><Metric icon={FileText} label="Draft" value="—"/><Metric icon={CheckCircle2} label="Approved" value="—"/><Metric icon={WalletCards} label="Disbursed" value="—"/></div><div className="rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-200 px-5 py-4"><h2 className="font-semibold text-slate-900">Monthly Payroll Lifecycle</h2><p className="text-xs text-slate-500">Draft → Calculated → Approved → Disbursed</p></div><div className="grid gap-4 p-5 md:grid-cols-2"><InfoCard icon={FileText} title="Salary Slip Generator" text="Monthly PDF payslips should itemize Basic, HRA, allowances, gross pay, PF, ESIC, LWF, dress EMI and net pay."/><InfoCard icon={LockKeyhole} title="Salary Hold Engine" text="Hold payouts for missing police verification, absconding/unannounced exit, pending uniform cost or manual flags, with reason and release audit logs."/><InfoCard icon={ShieldCheck} title="Restricted Salary Access" text="Salary amounts remain role-controlled. Employees can receive their salary slip without exposing payroll administration screens."/><InfoCard icon={ClipboardCheck} title="Audit Trail" text="Payroll actions should retain actor, timestamp, approval state and release criteria." /></div></div></section>;
-}
-
-function Metric({ icon: Icon, label, value }) { return <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><Icon className="h-5 w-5 text-slate-500"/><div className="mt-3 text-2xl font-semibold text-slate-950">{value}</div><div className="mt-1 text-xs font-medium text-slate-500">{label}</div></div>; }
-function StatusBadge({ value }) { const danger=['BENCH','EXPIRED'].includes(value) || String(value).includes('DAYS') && Number.parseInt(value) <= 30; return <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${danger?'bg-rose-50 text-rose-700':'bg-emerald-50 text-emerald-700'}`}>{value}</span>; }
-function SectionTitle({ icon: Icon, title, subtitle }) { return <div className="flex items-start gap-3"><div className="rounded-xl bg-slate-100 p-2.5 text-slate-600"><Icon className="h-5 w-5"/></div><div><h3 className="font-semibold text-slate-900">{title}</h3><p className="mt-1 text-xs text-slate-500">{subtitle}</p></div></div>; }
-function InfoCard({ icon: Icon, title, text }) { return <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><Icon className="h-5 w-5 text-slate-500"/><h3 className="mt-4 font-semibold text-slate-900">{title}</h3><p className="mt-1 text-sm leading-6 text-slate-500">{text}</p></div>; }
-function SelectField({ label, value, onChange, options, labels, required=false }) { return <label className="block"><span className="mb-1.5 block text-xs font-semibold text-slate-600">{label}{required&&<span className="text-rose-500"> *</span>}</span><select value={value} required={required} onChange={(e)=>onChange(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-400">{options.map((x,i)=><option key={x || 'empty'} value={x}>{labels ? labels[i] : (x || 'Select')}</option>)}</select></label>; }
-
-
-function DocumentUploader({ employee, documents, busy, uploadDocument, openDocument }) {
-  if (!employee) {
-    return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800"><strong>Save the employee first.</strong> Documents are attached to the permanent employee ID after creation.</div>;
-  }
-  const byType = Object.fromEntries(documents.map((d) => [d.document_type, d]));
-  return <div className="space-y-5">
-    <SectionTitle icon={FileUp} title="Employee Documents" subtitle="Private storage + file integrity screening. Uploaded documents remain pending HR verification until reviewed." />
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><div className="text-xs uppercase tracking-wider text-slate-500">Employee ID</div><div className="mt-1 text-lg font-semibold text-slate-950">{employee.employee_code}</div><div className="text-xs text-slate-500">{employee.name}</div></div>
-        <div className="rounded-xl bg-white px-4 py-3 text-xs text-slate-600 shadow-sm"><ShieldCheck className="mr-1 inline h-4 w-4 text-emerald-600" /> Integrity check runs on every upload</div>
-      </div>
-    </div>
-    <div className="grid gap-3 md:grid-cols-2">
-      {DOCUMENT_TYPES.map(([type, label, required]) => {
-        const doc = byType[type];
-        return <div key={type} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div><div className="font-semibold text-slate-900">{label}{required && <span className="ml-1 text-rose-500">*</span>}</div><div className="mt-1 text-xs text-slate-500">{doc ? `${doc.original_filename} · ${doc.verification_status}` : 'Not uploaded'}</div></div>
-            {doc ? <button type="button" onClick={() => openDocument(doc.id)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700"><Eye className="h-3.5 w-3.5" /> View</button> : <ShieldAlert className="h-4 w-4 text-amber-500" />}
-          </div>
-          <label className="mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-100">
-            <Upload className="h-4 w-4" /> {doc ? 'Replace / add version' : 'Upload document'}
-            <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" className="hidden" disabled={busy} onChange={(e) => { const file=e.target.files?.[0]; if(file) uploadDocument(file,type); e.target.value=''; }} />
-          </label>
-          {doc && <div className="mt-3 flex items-center justify-between text-[11px]"><span className="text-emerald-600 font-semibold">Integrity: PASSED</span><span className="text-amber-600 font-semibold">Review: {doc.verification_status}</span></div>}
-        </div>;
-      })}
-    </div>
-    <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
-      <strong>Authenticity rule:</strong> the system can verify file integrity, file type, duplicate hash and metadata. It does <strong>not</strong> claim a government document is genuine solely from the uploaded image/PDF; HR verification remains a separate approval step.
-    </div>
-  </div>;
 }

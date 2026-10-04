@@ -47,6 +47,8 @@ def punch_attendance(payload: dict, db: Session = Depends(get_db), current_user=
         raise HTTPException(404, "Roster not found")
     if current_user.role.value == "STAFF" and roster["user_id"] != current_user.id:
         raise HTTPException(403, "Staff may only punch their own assigned roster")
+    from app.api.v1.endpoints.roster_master import _assert_deployable
+    _assert_deployable(db,roster["guard_id"])
     if roster["site_lat"] is None or roster["site_lng"] is None:
         raise HTTPException(409, "Site GPS coordinates are not configured")
 

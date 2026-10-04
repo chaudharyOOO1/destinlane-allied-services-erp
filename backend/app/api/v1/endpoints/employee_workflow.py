@@ -1,337 +1,171 @@
+import json
 from uuid import UUID
-from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
-from app.api.deps import require_hr_or_admin, require_admin, get_current_active_user
+from app.api.deps import require_hr_or_admin, get_current_owner
 from app.api.permissions import has_permission
 from app.core.database import get_db
 from app.models.user import User
+from app.services.employee_workflow import employee,profile,clean_profile,validate_links,readiness,audit,activate,BASIC,bank_match
 
-router = APIRouter()
+router=APIRouter()
 
-REQUIRED_DOCUMENTS = {"FORM_11", "POLICE_VERIFICATION", "MEDICAL_FITNESS", "BANK_PASSBOOK", "AADHAAR", "PAN"}
 
-def _employee_joining_payload(db: Session, employee_id: str):
-    row = db.execute(text("""
-        select e.*, i.intimation_id as source_intimation_id, i.name as intimation_name,
-               i.status as intimation_status, d.status as joining_status, d.last_saved_at
-        from public.employees e
-        left join public.employee_joining_drafts d on d.employee_id=e.id
-        left join public.employee_intimations i on i.id=d.intimation_id
-        where e.id=:id
-    """), {"id": employee_id}).mappings().first()
-    return dict(row) if row else None
+def payload(db,eid):
+    row=employee(db,eid)
+    draft=db.execute(text('select status,last_saved_at from employee_joining_drafts where employee_id=:id'),{'id':str(eid)}).mappings().first()
+    return {**row,'profile':profile(row),'joining_status':draft['status'] if draft else None,'last_saved_at':draft['last_saved_at'] if draft else None,'readiness':readiness(db,row),'approval_readiness':readiness(db,row,True)}
 
-@router.post("/intimations", status_code=201)
-def create_intimation(payload: dict, db: Session = Depends(get_db), current_user: User = Depends(require_hr_or_admin)):
-    if not payload.get("name"):
-        raise HTTPException(422, "Employee name is required for intimation.")
-    row = db.execute(text("""
-        insert into public.employee_intimations
-          (name, phone, designation, category, client_id, notes, created_by)
-        values (:name,:phone,:designation,:category,:client_id,:notes,:created_by)
-        returning *
-    """), {
-        "name": payload["name"].strip(),
-        "phone": payload.get("phone"),
-        "designation": payload.get("designation"),
-        "category": payload.get("category"),
-        "client_id": payload.get("client_id"),
-        "notes": payload.get("notes"),
-        "created_by": current_user.id,
-    }).mappings().one()
-    db.commit()
-    return dict(row)
 
-@router.get("/intimations")
-def list_intimations(db: Session = Depends(get_db), current_user: User = Depends(require_hr_or_admin)):
-    rows = db.execute(text("""
-        select i.*, e.id as employee_id, e.employee_code, e.status as employee_status,
-               d.status as joining_status
-        from public.employee_intimations i
-        left join public.employee_joining_drafts d on d.intimation_id=i.id
-        left join public.employees e on e.id=d.employee_id
-        order by i.created_at desc
-    """)).mappings().all()
-    return [dict(r) for r in rows]
-
-@router.post("/intimations/{intimation_id}/create", status_code=201)
-def create_employee_from_intimation(intimation_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(require_hr_or_admin)):
-    info = db.execute(text("select * from public.employee_intimations where id=:id"), {"id": str(intimation_id)}).mappings().first()
-    if not info:
-        raise HTTPException(404, "Intimation not found.")
-    existing = db.execute(text("select employee_id from public.employee_joining_drafts where intimation_id=:id"), {"id": str(intimation_id)}).first()
-    if existing:
-        return _employee_joining_payload(db, str(existing.employee_id))
-
+@router.post('/intimations',status_code=201)
+def create_intimation(data:dict,db:Session=Depends(get_db),user:User=Depends(require_hr_or_admin)):
+    fields={'name','father_name','aadhaar_no','phone','client_id','branch'}
+    if set(data)-fields: raise HTTPException(422,'Intimation accepts name, father name, Aadhaar, phone, client and company branch only.')
+    p=clean_profile(data)
+    missing=fields-{k for k,v in p.items() if v}
+    if missing: raise HTTPException(422,'Complete intimation fields: '+', '.join(sorted(missing)))
+    validate_links(db,p)
     try:
-        row = db.execute(text("""
-            insert into public.employees
-              (name, phone, designation, category, client_id, intimation_id, status)
-            values
-              (:name,:phone,:designation,:category,:client_id,:intimation_id,'DRAFT')
-            returning *
-        """), {
-            "name": info["name"],
-            "phone": info["phone"],
-            "designation": info["designation"],
-            "category": info["category"] or "GUARD",
-            "client_id": info["client_id"],
-            "intimation_id": info["intimation_id"],
-        }).mappings().one()
-
-        db.execute(text("""
-            insert into public.employee_joining_drafts(intimation_id, employee_id, created_by)
-            values (:intimation_id,:employee_id,:created_by)
-        """), {"intimation_id": str(intimation_id), "employee_id": str(row["id"]), "created_by": current_user.id})
-        db.execute(text("update public.employee_intimations set status='JOINING' where id=:id"), {"id": str(intimation_id)})
+        info=db.execute(text('insert into employee_intimations(name,father_name,aadhaar_no,phone,client_id,branch,created_by) values (:name,:father_name,:aadhaar_no,:phone,:client_id,:branch,:user) returning *'),{**p,'user':user.id}).mappings().one()
+        row=db.execute(text("insert into employees(name,father_name,aadhaar_no,phone,client_id,branch,intimation_id,status) values (:name,:father_name,:aadhaar_no,:phone,:client_id,:branch,:iid,'DRAFT') returning *"),{**p,'iid':info['intimation_id']}).mappings().one()
+        db.execute(text("insert into employee_joining_drafts(intimation_id,employee_id,created_by) values (:iid,:eid,:user)"),{'iid':str(info['id']),'eid':str(row['id']),'user':user.id})
+        audit(db,row['id'],user,'INTIMATION',1,{'intimation_id':info['intimation_id']})
         db.commit()
-        return _employee_joining_payload(db, str(row["id"]))
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(409, str(exc).split("\n")[0])
+        return payload(db,row['id'])
+    except IntegrityError:
+        db.rollback();raise HTTPException(409,'An employee with this Aadhaar or mobile number already exists. Open the existing employee file.')
 
-@router.get("/joining")
-def list_joining(db: Session = Depends(get_db), current_user: User = Depends(require_hr_or_admin)):
-    rows = db.execute(text("""
-        select e.id, e.employee_code, e.name, e.phone, e.designation, e.category, e.client_id,
-               e.status as employee_status, i.intimation_id, i.created_at as intimation_created_at,
-               d.status as joining_status, d.last_saved_at,
-               coalesce((select count(*) from public.employee_documents ed where ed.employee_id=e.id),0) as document_count
-        from public.employee_joining_drafts d
-        join public.employees e on e.id=d.employee_id
-        join public.employee_intimations i on i.id=d.intimation_id
-        order by d.updated_at desc
-    """)).mappings().all()
-    return [dict(r) for r in rows]
 
-@router.get("/joining/{employee_id}")
-def get_joining(employee_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(require_hr_or_admin)):
-    result = _employee_joining_payload(db, str(employee_id))
-    if not result:
-        raise HTTPException(404, "Joining record not found.")
+@router.get('/intimations')
+@router.get('/joining')
+def list_joining(db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+    rows=db.execute(text("select e.id,e.employee_code,e.name,e.phone,e.branch,e.designation,e.intimation_id,e.status as employee_status,e.client_id,d.intimation_id as intimation_uuid,d.status as joining_status,d.last_saved_at from employee_joining_drafts d join employees e on e.id=d.employee_id order by d.updated_at desc")).mappings().all()
+    return [dict(x) for x in rows]
+
+
+@router.post('/intimations/{intimation_id}/create')
+def resume_intimation(intimation_id:UUID,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+    row=db.execute(text('select employee_id from employee_joining_drafts where intimation_id=:id'),{'id':str(intimation_id)}).first()
+    if not row: raise HTTPException(404,'Intimation joining file not found.')
+    return payload(db,row[0])
+
+
+@router.get('/joining/{employee_id}')
+def get_joining(employee_id:UUID,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)): return payload(db,employee_id)
+
+
+@router.patch('/joining/{employee_id}')
+def save_joining(employee_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+    if set(data)-{'version','profile'} or not isinstance(data.get('profile'),dict): raise HTTPException(422,'Provide version and profile.')
+    row=employee(db,employee_id,True)
+    if data.get('version')!=row['version']: raise HTTPException(409,'This employee file changed. Reopen it before saving.')
+    draft=db.execute(text('select status from employee_joining_drafts where employee_id=:id'),{'id':str(employee_id)}).first()
+    if not draft or draft[0] not in {'DRAFT','REJECTED'}: raise HTTPException(409,'The submitted employee file is locked. It must be returned before changes.')
+    updates=clean_profile(data['profile']); p={**profile(row),**updates}
+    if any(not p.get(k) for k in {'name','father_name','phone','aadhaar_no','branch','client_id'}): raise HTTPException(422,'Intimation identity, client and company branch remain required.')
+    validate_links(db,p)
+    extras={k:v for k,v in p.items() if k not in BASIC}
+    basic={k:v for k,v in updates.items() if k in BASIC}
+    sets=', '.join(f'{k}=:{k}' for k in basic)
+    parameters={**basic,'id':str(employee_id),'profile':json.dumps(extras,default=str)}
+    try:
+        db.execute(text('update employees set '+(sets+', ' if sets else '')+"profile=cast(:profile as jsonb),version=version+1,updated_at=now(),status='DRAFT' where id=:id"),parameters)
+        if all(p.get(k) for k in {'bank_account_no','bank_name','bank_branch','bank_ifsc'}):
+            db.execute(text('insert into employee_bank_accounts(employee_id,account_number,bank_name,branch,ifsc_code,ifsc_verified) values (:id,:account,:bank,:branch,:ifsc,:verified) on conflict (employee_id) do update set account_number=excluded.account_number,bank_name=excluded.bank_name,branch=excluded.branch,ifsc_code=excluded.ifsc_code,ifsc_verified=excluded.ifsc_verified,updated_at=now()'),{'id':str(employee_id),'account':p['bank_account_no'],'bank':p['bank_name'],'branch':p['bank_branch'],'ifsc':p['bank_ifsc'],'verified':bank_match(db,p)})
+        db.execute(text("update employee_joining_drafts set status='DRAFT',last_saved_at=now(),updated_at=now() where employee_id=:id"),{'id':str(employee_id)})
+        db.execute(text("update employee_intimations set status='JOINING',updated_at=now() where intimation_id=:iid"),{'iid':row['intimation_id']})
+        audit(db,employee_id,user,'SAVE_DRAFT',row['version']+1,{'changed_fields':sorted(updates)})
+        db.commit()
+    except IntegrityError:
+        db.rollback();raise HTTPException(409,'This Aadhaar or mobile belongs to another employee.')
+    return payload(db,employee_id)
+
+
+def approval_chain(db):
+    rows=db.execute(text("select * from employee_approval_categories where task_type='EMPLOYEE_JOINING' and is_active=true and approver_user_id is not null order by sequence_order,id")).mappings().all()
+    if not rows or not rows[-1]['is_final_approver'] or sum(bool(x['is_final_approver']) for x in rows)!=1: raise HTTPException(409,'Owner must configure the joining approval chain with its last step marked final.')
+    result=[]
+    for c in rows:
+        target=db.get(User,c['approver_user_id'])
+        if not target or not target.is_active or target.role.value not in {'OWNER','SUPER_ADMIN','ADMIN','HR'} or not has_permission(db,target,'employees.approve') or not has_permission(db,target,'employees.view'): raise HTTPException(409,'An assigned joining approver is unavailable. Owner must update the setup.')
+        result.append({'category_id':c['id'],'assigned_to':target.id,'category_name':c['category_name']})
     return result
 
-@router.patch("/joining/{employee_id}")
-def save_joining_draft(employee_id: UUID, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(require_hr_or_admin)):
-    exists = db.execute(text("select id from public.employee_joining_drafts where employee_id=:id and status in ('DRAFT','REJECTED')"), {"id": str(employee_id)}).first()
-    if not exists:
-        raise HTTPException(409, "This employee joining record is no longer editable.")
-    allowed = {
-        "name","phone","dob","gender","designation","client_id","site_id","joining_date","category",
-        "aadhaar_no","pan_no","permanent_address","present_address","emergency_contact","marital_status",
-        "status_reason"
-    }
-    data = {k:v for k,v in payload.items() if k in allowed}
-    if not data:
-        return _employee_joining_payload(db, str(employee_id))
-    data["id"]=str(employee_id)
-    sets=", ".join(f"{k}=:{k}" for k in data if k!="id")
-    row=db.execute(text(f"update public.employees set {sets} where id=:id returning id"), data).first()
-    if not row:
-        db.rollback()
-        raise HTTPException(404, "Employee not found.")
-    bank_keys={"bank_account_no","bank_name","bank_branch","bank_ifsc"}
-    bank_present=any(payload.get(k) for k in bank_keys)
-    if bank_present:
-        if not all(payload.get(k) for k in bank_keys):
-            db.rollback()
-            raise HTTPException(422, "Complete all bank fields before saving the bank section.")
-        db.execute(text("""
-            insert into public.employee_bank_accounts
-              (employee_id,account_number,bank_name,branch,ifsc_code,ifsc_verified)
-            values (:id,:account_number,:bank_name,:branch,:ifsc_code,:verified)
-            on conflict (employee_id) do update set
-              account_number=excluded.account_number, bank_name=excluded.bank_name,
-              branch=excluded.branch, ifsc_code=excluded.ifsc_code,
-              ifsc_verified=excluded.ifsc_verified, updated_at=now()
-        """), {
-            "id": str(employee_id), "account_number": payload["bank_account_no"],
-            "bank_name": payload["bank_name"], "branch": payload["bank_branch"],
-            "ifsc_code": str(payload["bank_ifsc"]).strip().upper(),
-            "verified": bool(payload.get("ifsc_verified", False))
-        })
-    if payload.get("nominee_name"):
-        existing_nominee=db.execute(text("select id from public.employee_nominees where employee_id=:id limit 1"), {"id": str(employee_id)}).first()
-        if existing_nominee:
-            db.execute(text("""
-                update public.employee_nominees
-                set nominee_name=:name, relation=:relation, dob=:dob,
-                    aadhaar_no=:aadhaar, allocation_percentage=:percentage
-                where id=:nominee_id
-            """), {
-                "nominee_id": existing_nominee[0], "name": payload.get("nominee_name"),
-                "relation": payload.get("nominee_relation"), "dob": payload.get("nominee_dob"),
-                "aadhaar": payload.get("nominee_aadhaar"), "percentage": payload.get("nominee_percentage") or 100
-            })
-        else:
-            db.execute(text("""
-                insert into public.employee_nominees
-                  (employee_id,nominee_name,relation,dob,aadhaar_no,allocation_percentage)
-                values (:id,:name,:relation,:dob,:aadhaar,:percentage)
-            """), {
-                "id": str(employee_id), "name": payload.get("nominee_name"),
-                "relation": payload.get("nominee_relation"), "dob": payload.get("nominee_dob"),
-                "aadhaar": payload.get("nominee_aadhaar"), "percentage": payload.get("nominee_percentage") or 100
-            })
-    db.execute(text("update public.employee_joining_drafts set status='DRAFT', last_saved_at=now(), updated_at=now() where employee_id=:id"), {"id": str(employee_id)})
-    db.execute(text("update public.employee_intimations set status='JOINING', updated_at=now() where id=(select intimation_id from public.employee_joining_drafts where employee_id=:id)"), {"id": str(employee_id)})
-    db.commit()
-    return _employee_joining_payload(db, str(employee_id))
 
-@router.post("/joining/{employee_id}/submit")
-def submit_joining(employee_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(require_hr_or_admin)):
-    emp = db.execute(text("select * from public.employees where id=:id"), {"id": str(employee_id)}).mappings().first()
-    draft = db.execute(text("select * from public.employee_joining_drafts where employee_id=:id"), {"id": str(employee_id)}).mappings().first()
-    if not emp or not draft:
-        raise HTTPException(404, "Employee joining draft not found.")
-    if draft["status"] not in ("DRAFT","REJECTED"):
-        raise HTTPException(409, "This joining record is not ready for submission.")
-    required = ["name","phone","dob","gender","designation","client_id","joining_date","category","aadhaar_no","pan_no","permanent_address","present_address","emergency_contact"]
-    missing=[k for k in required if not emp.get(k)]
-    if missing:
-        raise HTTPException(422, "Complete required employee details before submission: " + ", ".join(missing))
-    docs = {r[0] for r in db.execute(text("select document_type from public.employee_documents where employee_id=:id"), {"id": str(employee_id)}).all()}
-    missing_docs = sorted(REQUIRED_DOCUMENTS - docs)
-    if missing_docs:
-        raise HTTPException(422, "Upload required documents before submission: " + ", ".join(missing_docs))
-    category = db.execute(text("""
-        select * from public.employee_approval_categories
-        where task_type='EMPLOYEE_JOINING' and is_active=true and approver_user_id is not null
-        order by sequence_order asc, id asc limit 1
-    """)).mappings().first()
-    final_category = db.execute(text("""
-        select 1 from public.employee_approval_categories
-        where task_type='EMPLOYEE_JOINING' and is_active=true
-          and is_final_approver=true and approver_user_id is not null
-    """)).first()
-    if not category:
-        raise HTTPException(409, "No approver is assigned for Employee Joining. Set an approver in Approver Setup first.")
-    if not final_category:
-        raise HTTPException(409, "A final approver must be assigned in Approver Setup before an employee can be submitted.")
-    if db.execute(text("select 1 from public.employee_approval_requests where employee_id=:id and status='PENDING'"), {"id": str(employee_id)}).first():
-        raise HTTPException(409, "This employee is already pending approval.")
-    req = db.execute(text("""
-        insert into public.employee_approval_requests
-          (employee_id,category_id,assigned_to,submitted_by,status,submitted_at)
-        values (:employee_id,:category_id,:assigned_to,:submitted_by,'PENDING',now())
-        returning *
-    """), {
-        "employee_id": str(employee_id), "category_id": category["id"],
-        "assigned_to": category["approver_user_id"], "submitted_by": current_user.id
-    }).mappings().one()
-    db.execute(text("update public.employee_joining_drafts set status='PENDING_APPROVAL',last_saved_at=now(),updated_at=now() where employee_id=:id"), {"id": str(employee_id)})
-    db.execute(text("update public.employees set status='PENDING_APPROVAL' where id=:id"), {"id": str(employee_id)})
-    db.commit()
-    return dict(req)
+def add_request(db,eid,user,chain,index=0):
+    c=chain[index]
+    return dict(db.execute(text("insert into employee_approval_requests(employee_id,category_id,assigned_to,submitted_by,status,workflow_snapshot,step_index) values (:id,:category,:assigned,:user,'PENDING',cast(:chain as jsonb),:step) returning *"),{'id':str(eid),'category':c['category_id'],'assigned':c['assigned_to'],'user':user.id,'chain':json.dumps(chain),'step':index}).mappings().one())
 
-@router.get("/approvals")
-def list_approvals(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
-    rows = db.execute(text("""
-        select ar.*, e.employee_code, e.name, e.phone, e.designation, e.category,
-               c.category_name, u.full_name as assigned_to_name
-        from public.employee_approval_requests ar
-        join public.employees e on e.id=ar.employee_id
-        left join public.employee_approval_categories c on c.id=ar.category_id
-        left join public.users u on u.id=ar.assigned_to
-        where ar.status='PENDING'
-        order by ar.submitted_at asc
-    """)).mappings().all()
-    return [dict(r) for r in rows if current_user.role.value in {"OWNER","SUPER_ADMIN","ADMIN"} or r["assigned_to"] == current_user.id]
 
-@router.post("/approvals/{approval_id}/decision")
-def decide_approval(approval_id: UUID, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
-    if not has_permission(db, current_user, "employees.approve"):
-        raise HTTPException(403, "Approval permission is required.")
-    request = db.execute(text("select * from public.employee_approval_requests where id=:id"), {"id": str(approval_id)}).mappings().first()
-    if not request:
-        raise HTTPException(404, "Approval request not found.")
-    if request["status"] != "PENDING":
-        raise HTTPException(409, "This approval request is already decided.")
-    if request["assigned_to"] != current_user.id and current_user.role.value not in {"OWNER","SUPER_ADMIN","ADMIN"}:
-        raise HTTPException(403, "This approval is assigned to another approver.")
-    decision = str(payload.get("decision","")).upper()
-    if decision not in {"APPROVE","REJECT"}:
-        raise HTTPException(422, "Decision must be APPROVE or REJECT.")
-    remarks = (payload.get("remarks") or "").strip() or None
-    category = db.execute(text("select * from public.employee_approval_categories where id=:id"), {"id": request["category_id"]}).mappings().first()
-    if decision == "REJECT":
-        db.execute(text("""
-            update public.employee_approval_requests
-            set status='REJECT', remarks=:remarks, decided_by=:decided_by, decided_at=now()
-            where id=:id
-        """), {"remarks": remarks, "decided_by": current_user.id, "id": str(approval_id)})
-        db.execute(text("update public.employees set status='REJECTED' where id=:id"), {"id": str(request["employee_id"])})
-        db.execute(text("update public.employee_joining_drafts set status='REJECTED',updated_at=now() where employee_id=:id"), {"id": str(request["employee_id"])})
-        db.commit()
-        return {"status":"REJECT","employee_id":str(request["employee_id"]),"remarks":remarks}
+@router.post('/joining/{employee_id}/submit')
+def submit_joining(employee_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+    row=employee(db,employee_id,True)
+    if data.get('version')!=row['version']: raise HTTPException(409,'Reopen the current employee file before submitting.')
+    draft=db.execute(text('select status from employee_joining_drafts where employee_id=:id'),{'id':str(employee_id)}).first()
+    if not draft or draft[0] not in {'DRAFT','REJECTED'}: raise HTTPException(409,'This file is already submitted or approved.')
+    validate_links(db,profile(row)); ready=readiness(db,row,user.role.value=='OWNER')
+    if not ready['ready']: raise HTTPException(422,ready)
+    if user.role.value=='OWNER':
+        activate(db,row,user);db.commit();return {'status':'APPROVED','employee_id':str(employee_id),'final':True}
+    chain=approval_chain(db);request=add_request(db,employee_id,user,chain)
+    db.execute(text("update employees set status='PENDING_APPROVAL',version=version+1,updated_at=now() where id=:id"),{'id':str(employee_id)})
+    db.execute(text("update employee_joining_drafts set status='PENDING_APPROVAL',updated_at=now() where employee_id=:id"),{'id':str(employee_id)})
+    audit(db,employee_id,user,'SUBMIT',row['version']+1,{'approvers':chain});db.commit();return request
 
-    db.execute(text("""
-        update public.employee_approval_requests
-        set status='APPROVED', remarks=:remarks, decided_by=:decided_by, decided_at=now()
-        where id=:id
-    """), {"remarks": remarks, "decided_by": current_user.id, "id": str(approval_id)})
 
-    if category and category["is_final_approver"]:
-        db.execute(text("update public.employees set status='ACTIVE' where id=:id"), {"id": str(request["employee_id"])})
-        db.execute(text("update public.employee_joining_drafts set status='APPROVED',updated_at=now() where employee_id=:id"), {"id": str(request["employee_id"])})
-        db.execute(text("update public.employee_intimations set status='APPROVED',updated_at=now() where id=(select intimation_id from public.employee_joining_drafts where employee_id=:id)"), {"id": str(request["employee_id"])})
-        db.commit()
-        return {"status":"APPROVED","employee_id":str(request["employee_id"]),"remarks":remarks,"final":True}
-
-    next_category = db.execute(text("""
-        select * from public.employee_approval_categories
-        where task_type='EMPLOYEE_JOINING' and is_active=true
-          and approver_user_id is not null
-          and sequence_order > :current_order
-        order by sequence_order asc, id asc limit 1
-    """), {"current_order": category["sequence_order"] if category else 0}).mappings().first()
-    if not next_category:
-        db.rollback()
-        raise HTTPException(409, "This approval is not marked final and no next approver is configured.")
-
-    db.execute(text("""
-        insert into public.employee_approval_requests
-          (employee_id,category_id,assigned_to,submitted_by,status,submitted_at)
-        values (:employee_id,:category_id,:assigned_to,:submitted_by,'PENDING',now())
-    """), {
-        "employee_id":str(request["employee_id"]), "category_id":next_category["id"],
-        "assigned_to":next_category["approver_user_id"], "submitted_by":current_user.id
-    })
-    db.commit()
-    return {"status":"APPROVED","employee_id":str(request["employee_id"]),"remarks":remarks,"next_approver":next_category["approver_user_id"],"final":False}
-
-@router.get("/approval-categories")
-def list_approval_categories(db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
-    rows=db.execute(text("""
-        select c.*, u.full_name as approver_name, u.email as approver_email
-        from public.employee_approval_categories c
-        left join public.users u on u.id=c.approver_user_id
-        order by c.id
-    """)).mappings().all()
+@router.get('/approvals')
+def list_approvals(db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+    rows=db.execute(text("select ar.*,e.name,e.employee_code from employee_approval_requests ar join employees e on e.id=ar.employee_id where ar.status='PENDING' and (:owner or ar.assigned_to=:user) order by ar.submitted_at"),{'owner':user.role.value=='OWNER','user':user.id}).mappings().all()
     return [dict(r) for r in rows]
 
-@router.put("/approval-categories/{category_id}")
-def update_approval_category(category_id: int, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
-    approver_id = payload.get("approver_user_id")
-    if approver_id in ("", None):
-        approver_id = None
+
+@router.post('/approvals/{approval_id}/decision')
+def decide(approval_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+    # Match document mutations' employee-first lock order; concurrent decisions cannot activate twice.
+    target=db.execute(text('select employee_id from employee_approval_requests where id=:id'),{'id':str(approval_id)}).first()
+    if not target: raise HTTPException(404,'Approval request not found.')
+    row=employee(db,target[0],True)
+    req=db.execute(text('select * from employee_approval_requests where id=:id for update'),{'id':str(approval_id)}).mappings().one()
+    if req['status']!='PENDING': raise HTTPException(409,'This request is already decided.')
+    if user.role.value!='OWNER' and req['assigned_to']!=user.id: raise HTTPException(403,'This request is assigned to another approver.')
+    decision=data.get('decision');remarks=str(data.get('remarks') or '').strip()
+    if decision not in {'APPROVE','REJECT'}: raise HTTPException(422,'Choose APPROVE or REJECT.')
+    if decision=='REJECT' and not remarks: raise HTTPException(422,'Return remarks are required.')
+    chain=req['workflow_snapshot'];index=req['step_index']
+    if decision=='APPROVE':
+        validate_links(db,profile(row))
+        ready=readiness(db,row,True)
+        if not ready['ready']: raise HTTPException(422,ready)
+        if not chain or index>=len(chain): raise HTTPException(409,'Approval chain is missing; Owner must return this file and resubmit.')
+    db.execute(text('update employee_approval_requests set status=:status,remarks=:remarks,decided_by=:user,decided_at=now() where id=:id'),{'id':str(approval_id),'status':'APPROVED' if decision=='APPROVE' else 'REJECTED','remarks':remarks or None,'user':user.id})
+    if decision=='REJECT':
+        db.execute(text("update employees set status='REJECTED',version=version+1,updated_at=now() where id=:id"),{'id':str(row['id'])})
+        db.execute(text("update employee_joining_drafts set status='REJECTED',updated_at=now() where employee_id=:id"),{'id':str(row['id'])})
+        audit(db,row['id'],user,'RETURN',row['version']+1,{'remarks':remarks})
+    elif index==len(chain)-1: activate(db,row,user)
     else:
-        approver_id = int(approver_id)
-        user=db.execute(text("select id,is_active from public.users where id=:id"), {"id":approver_id}).mappings().first()
-        if not user or not user["is_active"]:
-            raise HTTPException(422, "Approver must be an active user.")
-    is_final = bool(payload.get("is_final_approver", False))
-    if is_final:
-        db.execute(text("update public.employee_approval_categories set is_final_approver=false where id<>:id"), {"id": category_id})
-    row=db.execute(text("""
-        update public.employee_approval_categories
-        set approver_user_id=:approver,is_final_approver=:is_final,updated_at=now()
-        where id=:id returning *
-    """), {"approver":approver_id,"is_final":is_final,"id":category_id}).mappings().first()
-    if not row:
-        raise HTTPException(404, "Approval category not found.")
-    db.commit()
-    return dict(row)
+        next_user=db.get(User,chain[index+1]['assigned_to'])
+        if not next_user or not next_user.is_active or not has_permission(db,next_user,'employees.approve'): raise HTTPException(409,'Next assigned approver is unavailable. Owner can return the file for resubmission.')
+        add_request(db,row['id'],user,chain,index+1);audit(db,row['id'],user,'APPROVE_STEP',row['version'],{'remarks':remarks,'step':index})
+    db.commit();return {'status':decision,'employee_id':str(row['id']),'final':decision=='APPROVE' and index==len(chain)-1}
+
+
+@router.get('/approval-categories')
+def categories(db:Session=Depends(get_db),user=Depends(require_hr_or_admin)):
+    return [dict(x) for x in db.execute(text('select c.*,u.full_name as approver_name from employee_approval_categories c left join users u on u.id=c.approver_user_id order by sequence_order,id')).mappings()]
+
+
+@router.put('/approval-categories/{category_id}')
+def update_category(category_id:int,data:dict,db:Session=Depends(get_db),user=Depends(get_current_owner)):
+    assigned=data.get('approver_user_id') or None
+    if assigned:
+        target=db.get(User,assigned)
+        if not target or not target.is_active or target.role.value not in {'OWNER','SUPER_ADMIN','ADMIN','HR'} or not has_permission(db,target,'employees.approve') or not has_permission(db,target,'employees.view'): raise HTTPException(422,'Choose an active approver with Employee view and approve access.')
+    final=data.get('is_final_approver',False)
+    if not isinstance(final,bool): raise HTTPException(422,'Final approver must be true or false.')
+    if final: db.execute(text("update employee_approval_categories set is_final_approver=false where task_type='EMPLOYEE_JOINING'"))
+    row=db.execute(text('update employee_approval_categories set approver_user_id=:user,is_final_approver=:final,updated_at=now() where id=:id returning *'),{'id':category_id,'user':assigned,'final':final}).mappings().first()
+    if not row: raise HTTPException(404,'Approval step not found.')
+    db.commit();return dict(row)

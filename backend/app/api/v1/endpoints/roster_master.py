@@ -26,7 +26,7 @@ def roster_employees(db:Session=Depends(get_db),current_user=Depends(require_ops
       sp.vertical,sp.category,coalesce(sp.is_bench_locked,false) as is_bench_locked
       from guard_profiles g join employees e on e.id=g.employee_id
       left join staff_profiles sp on sp.employee_id=g.employee_id
-      where g.status::text='ACTIVE' and lower(coalesce(e.status,'active'))='active'
+      where g.status::text='ACTIVE' and lower(coalesce(e.status,''))='active' and exists(select 1 from employee_joining_drafts jd where jd.employee_id=e.id and jd.status='APPROVED') and exists(select 1 from employee_documents cd where cd.employee_id=e.id and cd.document_type='POLICE_VERIFICATION' and cd.verification_status='VERIFIED' and cd.expiry_date>=current_date) and exists(select 1 from employee_documents cd where cd.employee_id=e.id and cd.document_type='MEDICAL_FITNESS' and cd.verification_status='VERIFIED' and cd.expiry_date>=current_date)
         and coalesce(sp.is_bench_locked,false)=false
       order by e.name"""
     return [dict(r) for r in db.execute(text(q)).mappings().all()]
@@ -57,7 +57,7 @@ def shortfall_analysis(
               sp.vertical,sp.category
               from guard_profiles g join employees e on e.id=g.employee_id
               left join staff_profiles sp on sp.employee_id=g.employee_id
-              where g.status::text='ACTIVE' and lower(coalesce(e.status,'active'))='active'
+              where g.status::text='ACTIVE' and lower(coalesce(e.status,''))='active' and exists(select 1 from employee_joining_drafts jd where jd.employee_id=e.id and jd.status='APPROVED') and exists(select 1 from employee_documents cd where cd.employee_id=e.id and cd.document_type='POLICE_VERIFICATION' and cd.verification_status='VERIFIED' and cd.expiry_date>=current_date) and exists(select 1 from employee_documents cd where cd.employee_id=e.id and cd.document_type='MEDICAL_FITNESS' and cd.verification_status='VERIFIED' and cd.expiry_date>=current_date)
                 and coalesce(sp.is_bench_locked,false)=false
                 and not exists(select 1 from shift_rosters x
                   where x.guard_id=g.id and x.date=:d and x.status in ('SCHEDULED','COMPLETED'))
@@ -77,6 +77,9 @@ def _assert_deployable(db,guard_id:int,roster_id:int|None=None):
     if row["guard_status"]!="ACTIVE" or str(row.get("is_bench_locked")).lower()=="true":
         reason=row.get("bench_lock_reason") or "Staff member is not active for deployment."
         raise HTTPException(400,f"Staff member is locked to Bench due to compliance: {reason}")
+    from app.services.employee_workflow import compliance_reasons, employee
+    person=employee(db,row["employee_id"])
+    if person["status"].upper()!="ACTIVE" or compliance_reasons(db,row["employee_id"]): raise HTTPException(409,"Employee joining or mandatory compliance is incomplete.")
     return row
 
 @router.post("",status_code=201)

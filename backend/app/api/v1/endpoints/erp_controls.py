@@ -8,34 +8,18 @@ router = APIRouter()
 
 @router.get("/employee-documents")
 def list_employee_documents(db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
-    q = """select d.*, e.employee_code, e.name
+    q = """select d.id,d.employee_id,d.document_type,d.original_filename,d.issue_date,d.expiry_date,d.verification_status,e.employee_code,e.name
            from employee_documents d join employees e on e.id=d.employee_id
            order by d.expiry_date nulls last, e.name"""
     return [dict(r) for r in db.execute(text(q)).mappings().all()]
 
 @router.post("/employee-documents")
 def create_employee_document(payload: dict, db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
-    allowed = ["employee_id","document_type","document_url","document_number","issuing_authority","issue_date","expiry_date","status","metadata"]
-    data = {k:v for k,v in payload.items() if k in allowed}
-    if not data.get("employee_id") or not data.get("document_type"):
-        raise HTTPException(400, "employee_id and document_type are required")
-    cols=", ".join(data.keys())
-    vals=", ".join(f":{k}" for k in data)
-    q=f"insert into employee_documents ({cols}) values ({vals}) returning *"
-    return dict(db.execute(text(q), data).mappings().one())
+    raise HTTPException(409,"Use private file upload and verification in Employee Compliance Documents.")
 
 @router.patch("/employee-documents/{document_id}")
 def update_employee_document(document_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
-    allowed = ["document_type","document_url","document_number","issuing_authority","issue_date","expiry_date","status","metadata"]
-    data = {k:v for k,v in payload.items() if k in allowed}
-    if not data:
-        raise HTTPException(400, "No editable fields supplied")
-    data["id"]=document_id
-    sets=", ".join(f"{k}=:{k}" for k in data if k!="id")
-    q=f"update employee_documents set {sets}, updated_at=now() where id=:id returning *"
-    row=db.execute(text(q), data).mappings().first()
-    if not row: raise HTTPException(404, "Document not found")
-    return dict(row)
+    raise HTTPException(409,"Use private file upload and verification in Employee Compliance Documents.")
 
 @router.get("/corporate-compliances")
 def list_corporate_compliances(db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):

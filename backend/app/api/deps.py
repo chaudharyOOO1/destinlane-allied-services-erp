@@ -46,6 +46,11 @@ def _request_permission(request: Request) -> str | None:
         return "staff.edit"
     if module == "staff" and path.endswith("/decision"):
         return "staff.approve"
+    if module == "employees":
+        if path.endswith("/decision") or path.endswith("/verify"): return "employees.approve"
+        if path.endswith("/submit") or path.endswith("/compliance-refresh") or path.endswith("/status"): return "employees.edit"
+        if path.endswith("/sign"): return "employees.view"
+        if path.endswith("/reports/export"): return "employees.export"
     action = {"GET":"view","POST":"create","PUT":"edit","PATCH":"edit","DELETE":"delete"}.get(request.method.upper(),"view")
     return f"{module}.{action}"
 

@@ -67,13 +67,15 @@ def get_mobile_employee(token: str = Depends(mobile_oauth), db: Session = Depend
             from employees e
             left join sites s on s.id=e.site_id
             where e.id=cast(:employee_id as uuid)
-              and lower(coalesce(e.status,'')) not in ('inactive','terminated')
+              and lower(coalesce(e.status,'')) = 'active'
             """
         ),
         {"employee_id": employee_id},
     ).mappings().first()
     if not row:
         raise HTTPException(401, "Employee account is inactive or no longer exists.")
+    from app.services.employee_workflow import compliance_reasons
+    if compliance_reasons(db,row["id"]): raise HTTPException(403,"Renew mandatory employee compliance before mobile attendance.")
     return row
 
 
@@ -91,8 +93,8 @@ def mobile_login(payload: MobileLoginRequest, db: Session = Depends(get_db)):
                    s.longitude site_longitude,coalesce(s.geofence_radius_meters,100) geofence_radius
             from employees e
             left join sites s on s.id=e.site_id
-            where right(regexp_replace(coalesce(e.phone,''),'\D','','g'),10)=:phone
-              and lower(coalesce(e.status,'')) not in ('inactive','terminated')
+            where right(regexp_replace(coalesce(e.phone,''),'[^0-9]','','g'),10)=:phone
+              and lower(coalesce(e.status,'')) = 'active'
             order by e.created_at desc
             limit 1
             """

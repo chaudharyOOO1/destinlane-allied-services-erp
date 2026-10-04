@@ -134,25 +134,6 @@ def erp_summary(db: Session = Depends(get_db), current_user=Depends(require_acco
         "compliance_reminders": reminders,
     }
 
-@router.get("/employees")
-def list_employees(
-    status: Optional[str] = Query(None),
-    branch: Optional[str] = Query(None),
-    site_id: Optional[int] = Query(None),
-    db: Session = Depends(get_db),
-    current_user=Depends(require_hr_or_admin),
-):
-    sql = "select * from employees where 1=1"
-    params = {}
-    if status:
-        sql += " and status = :status"; params["status"] = status
-    if branch:
-        sql += " and branch = :branch"; params["branch"] = branch
-    if site_id is not None:
-        sql += " and site_id = :site_id"; params["site_id"] = site_id
-    sql += " order by created_at desc"
-    return [dict(r) for r in db.execute(text(sql), params).mappings().all()]
-
 @router.get("/compliance-expiry")
 def compliance_expiry(
     days: int = Query(60, ge=1, le=365),
@@ -161,7 +142,7 @@ def compliance_expiry(
 ):
     cutoff = date.today() + timedelta(days=days)
     rows = db.execute(text("""
-        select d.*, e.employee_code, e.name
+        select d.id,d.employee_id,d.document_type,d.expiry_date,d.verification_status,e.employee_code,e.name
         from employee_documents d
         join employees e on e.id = d.employee_id
         where d.expiry_date is not null and d.expiry_date <= :cutoff
