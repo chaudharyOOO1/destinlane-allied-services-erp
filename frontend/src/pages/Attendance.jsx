@@ -205,7 +205,7 @@ export default function Attendance() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Attendance Master</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Workforce attendance, shift review and corrections. All times are
+          Workforce attendance, shift review and corrections. The register shows up to 1,000 matching records. Export covers your selected dates, or the current month when dates are empty. All times are
           shown in India time.
         </p>
       </div>

@@ -261,3 +261,16 @@ def test_correction_snapshot_unchanged_when_shift_rule_changes(db,monkeypatch):
     db.execute('update attendance_shift_rules set duty_hours=12');db.commit()
     service.decide_correction(db,request['id'],service.Decision(decision='APPROVE',reason='Supervisor confirmed'),OWNER);db.commit()
     assert service.row(db,'select overtime_hours from attendance')['overtime_hours']==1
+
+def test_report_export_does_not_silently_use_register_limit(db,monkeypatch):
+    observed=[]
+    monkeypatch.setattr(api,'attendance_rows',lambda db,start,end,site,limit=1000:observed.append((start,end,limit)) or [{'name':'=TEST()','source':'MOBILE'}]*1005)
+    result=api.export_attendance(TODAY.replace(day=1),TODAY,None,db,OWNER)
+    content=result.body.decode()
+    assert content.count("'=TEST()") == 1005 and observed[0][2]==100001
+    assert 'device_id_hash' not in content and 'selfie_url' not in content
+
+def test_report_export_rejects_invalid_or_excessive_dates(db):
+    for start,end in [(TODAY,TODAY-timedelta(days=1)),(TODAY-timedelta(days=366),TODAY)]:
+        with pytest.raises(HTTPException) as e:api.export_attendance(start,end,None,db,OWNER)
+        assert e.value.status_code==422

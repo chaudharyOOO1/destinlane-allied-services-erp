@@ -13,20 +13,24 @@ from app.services import attendance as rules
 
 router=APIRouter()
 
+def attendance_rows(db,start,end,site_id,limit=1000):
+    if start and end and end<start:raise HTTPException(422,'End date must follow start date.')
+    sql="""select a.*,e.employee_code,e.name,r.shift_type,s.site_name from attendance a join employees e on e.id=a.employee_id left join shift_rosters r on r.id=a.roster_id left join sites s on s.id=r.site_id where (cast(:start as date) is null or a.attendance_date>=:start) and (cast(:end as date) is null or a.attendance_date<=:end) and (cast(:site as integer) is null or r.site_id=:site) order by a.attendance_date desc,a.created_at desc limit :limit"""
+    return [rules.public(r) for r in db.execute(text(sql),{'start':start,'end':end,'site':site_id,'limit':limit}).mappings().all()]
+
 @router.get('')
 def list_attendance(start:date|None=None,end:date|None=None,site_id:int|None=Query(default=None,gt=0),db:Session=Depends(get_db),current_user=Depends(require_ops_or_admin)):
-    if start and end and end<start:raise HTTPException(422,'End date must follow start date.')
-    sql='''select a.*,e.employee_code,e.name,r.shift_type,s.site_name from attendance a join employees e on e.id=a.employee_id left join shift_rosters r on r.id=a.roster_id left join sites s on s.id=r.site_id where (:start is null or a.attendance_date>=:start) and (:end is null or a.attendance_date<=:end) and (:site is null or r.site_id=:site) order by a.attendance_date desc,a.created_at desc limit 1000'''
-    # Explicit casts avoid PostgreSQL's untyped NULL parameter ambiguity.
-    sql=sql.replace(':start is null','cast(:start as date) is null').replace(':end is null','cast(:end as date) is null').replace(':site is null','cast(:site as integer) is null')
-    return [rules.public(r) for r in db.execute(text(sql),{'start':start,'end':end,'site':site_id}).mappings().all()]
+    return attendance_rows(db,start,end,site_id)
 
 @router.get('/reports/export')
 def export_attendance(start:date|None=None,end:date|None=None,site_id:int|None=Query(default=None,gt=0),db:Session=Depends(get_db),current_user=Depends(require_ops_or_admin)):
     import csv,io
     from fastapi.responses import Response
     from app.services.employee_reports import safe_cell
-    records=list_attendance(start,end,site_id,db,current_user)
+    end=end or rules.business_date();start=start or end.replace(day=1)
+    if (end-start).days>365:raise HTTPException(422,'Export a date range of at most 366 days.')
+    records=attendance_rows(db,start,end,site_id,100001)
+    if len(records)>100000:raise HTTPException(413,'Narrow the export date range or site filter.')
     fields=['attendance_date','employee_code','name','site_name','shift_type','status','check_in_time','check_out_time','shift_hours','overtime_hours','late_minutes','verification_status','source']
     output=io.StringIO();writer=csv.writer(output);writer.writerow(fields)
     for record in records:writer.writerow([safe_cell(record.get(k,'')) for k in fields])

@@ -1,6 +1,6 @@
 # DestinLane Attendance Master
 
-Attendance belongs to deployed workforce employees, separate from internal office staff. The ERP page has the register, date/site filters, CSV reports, punch review, assigned correction requests, owner-only shift rules and employee PIN/device administration.
+Attendance belongs to deployed workforce employees, separate from internal office staff. The ERP page has the register, date/site filters, CSV reports (a full selected range of up to 366 days, or current month by default; register capped at 1,000 entries), punch review, assigned correction requests, owner-only shift rules and employee PIN/device administration.
 
 ## Setup and attendance
 
