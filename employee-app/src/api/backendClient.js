@@ -17,9 +17,9 @@ async function request(path, options = {}) {
 }
 
 export const mobileApi = {
-  login: (phone) => request('/mobile/login', {
+  login: (phone, pin) => request('/mobile/login', {
     method: 'POST',
-    body: JSON.stringify({ phone }),
+    body: JSON.stringify({ phone, pin }),
   }),
   me: () => request('/mobile/me'),
   attendance: () => request('/mobile/me/attendance'),

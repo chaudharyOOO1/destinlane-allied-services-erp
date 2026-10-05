@@ -10,6 +10,7 @@ import { setSession } from "@/lib/phoneSession";
 export default function PhoneLogin() {
   const navigate = useNavigate();
   const [phone, setPhone] = useState("");
+  const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -23,7 +24,7 @@ export default function PhoneLogin() {
     setError("");
     setLoading(true);
     try {
-      const result = await mobileApi.login(clean);
+      const result = await mobileApi.login(clean, pin);
       localStorage.setItem("emp_access_token", result.access_token);
       setSession(result.employee);
       navigate("/");
@@ -50,7 +51,7 @@ export default function PhoneLogin() {
             DestinLane Allied Services
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            FAS · Employee Attendance — Login with your registered phone number
+            FAS · Employee Attendance — Login with your registered phone and employee PIN
           </p>
         </div>
 
@@ -77,8 +78,10 @@ export default function PhoneLogin() {
                   required
                 />
               </div>
-              <p className="text-xs text-slate-400">No password needed — just your phone</p>
+              <p className="text-xs text-slate-400">Ask the owner for your employee attendance PIN.</p>
             </div>
+
+            <div className="space-y-2"><label htmlFor="employee-pin" className="text-sm font-medium text-slate-700">Employee PIN</label><Input id="employee-pin" type="password" inputMode="numeric" autoComplete="current-password" value={pin} onChange={(e) => setPin(e.target.value)} pattern="[0-9]{8,12}" minLength={8} maxLength={12} required /></div>
 
             <Button
               type="submit"

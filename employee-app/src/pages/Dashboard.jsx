@@ -17,7 +17,7 @@ import AttendanceCalendar from "@/components/AttendanceCalendar";
 import SelfieCapture from "@/components/SelfieCapture";
 
 function todayStr() {
-  return new Date().toLocaleDateString("en-CA");
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
 
 function getDeviceId() {
@@ -65,7 +65,7 @@ export default function Dashboard() {
       setSalaryRecords(salary || []);
 
       const today = todayStr();
-      setTodayRecord((attendance || []).find((record) => record.attendance_date === today) || null);
+      setTodayRecord((attendance || []).find((record) => record.check_in_time && !record.check_out_time) || (attendance || []).find((record) => record.attendance_date === today) || null);
 
       const month = today.slice(0, 7);
       const monthAttendance = (attendance || []).filter((record) => record.attendance_date?.startsWith(month));
@@ -164,6 +164,7 @@ export default function Dashboard() {
 
       const selfie = await mobileApi.uploadSelfie(file, punchType);
       const result = await mobileApi.punch({
+        action: punchType === "check-in" ? "CHECK_IN" : "CHECK_OUT",
         latitude: punchCoords.lat,
         longitude: punchCoords.lng,
         accuracy: punchCoords.accuracy ?? null,

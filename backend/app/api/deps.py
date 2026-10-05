@@ -47,6 +47,12 @@ def _request_permission(request: Request) -> str | None:
     if module == "staff" and path.endswith("/decision"):
         return "staff.approve"
     if module == "rosters" and path.endswith("/cancel"): return "rosters.edit"
+    if module == "attendance":
+        if path.endswith("/reports/export"): return "attendance.export"
+        if path.endswith("/review") or path.endswith("/decision"): return "attendance.approve"
+        if path.endswith("/sign"): return "attendance.view"
+        if path.endswith("/corrections"): return "attendance.view" if request.method.upper()=="GET" else "attendance.edit"
+        if path.endswith("/access") or path.endswith("/reset-device"): return "attendance.edit"
     if module == "employees":
         if path.endswith("/decision") or path.endswith("/verify"): return "employees.approve"
         if path.endswith("/submit") or path.endswith("/compliance-refresh") or path.endswith("/status"): return "employees.edit"

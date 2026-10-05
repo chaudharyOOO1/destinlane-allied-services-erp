@@ -63,7 +63,7 @@ def calculate_payroll(payload: dict, db: Session = Depends(get_db), current_user
       left join guard_profiles gp on gp.employee_id=e.id
       left join attendance a on a.employee_id=e.id
         and a.attendance_date between :start_date and :end_date
-        and a.is_geofence_verified=true
+        and a.verification_status='VERIFIED' and a.check_out_time is not null and a.status in ('present','late','PRESENT','LATE')
       left join shift_rosters r on r.id=a.roster_id
       group by e.id,e.employee_code,e.name,sp.category,e.category,gp.daily_rate,
         sp.uniform_monthly_emi,sp.uniform_balance_due,sp.police_verification_expiry,
@@ -185,7 +185,7 @@ def generate_attendance_invoice(payload: dict, db: Session = Depends(get_db), cu
       left join site_rate_cards rc on rc.site_id=s.id and rc.vertical=coalesce(sp.vertical,'SECURITY') and rc.category=coalesce(sp.category,'STAFF') and rc.is_active=true
         and rc.effective_from<=a.attendance_date and (rc.effective_to is null or rc.effective_to>=a.attendance_date)
         and (rc.contract_id is null or exists(select 1 from client_contracts cc where cc.id=rc.contract_id and cc.status in ('ACTIVE','RENEWED','EXPIRED','TERMINATED') and a.attendance_date between cc.contract_start_date and cc.contract_end_date))
-      where a.attendance_date between :start and :end and a.is_geofence_verified=true{filters}
+      where a.attendance_date between :start and :end and a.verification_status='VERIFIED' and a.check_out_time is not null and a.status in ('present','late','PRESENT','LATE'){filters}
       group by s.id,s.site_name,s.client_id,c.company_name,c.branch_region,s.branch_region"""),params).mappings().all()
     generated=[]
     for row in rows:
@@ -199,7 +199,7 @@ def generate_attendance_invoice(payload: dict, db: Session = Depends(get_db), cu
         existing=db.execute(text("select id from invoices where invoice_number=:n"),{"n":invoice_number}).scalar()
         data={"client_id":row["client_id"],"invoice_number":invoice_number,"billing_month":billing_month.isoformat()[:7],"issue_date":date.today(),"due_date":month_end,
           "subtotal":subtotal,"tax_rate":18,"cgst":cgst,"sgst":sgst,"igst":igst,"tax_amount":tax,"total_amount":subtotal+tax,
-          "status":"DRAFT","clearance_status":"PENDING","notes":f"Auto-generated from verified GPS attendance for {row['site_name']}"}
+          "status":"DRAFT","clearance_status":"PENDING","notes":f"Auto-generated from approved attendance for {row['site_name']}"}
         if not existing:
             cols=", ".join(data); binds=", ".join(f":{k}" for k in data)
             invoice=db.execute(text(f"insert into invoices({cols}) values({binds}) returning *"),data).mappings().one()
