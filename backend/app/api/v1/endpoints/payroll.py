@@ -50,7 +50,7 @@ def calculate_payroll(payload: dict, db: Session = Depends(get_db), current_user
     rows = db.execute(text("""select e.id employee_id,e.employee_code,e.name,
       coalesce(sp.category,e.category,'STAFF') category,
       coalesce(gp.daily_rate,0) daily_rate,
-      coalesce(sp.uniform_monthly_emi,0) uniform_emi,
+      coalesce(sp.uniform_monthly_emi,0) uniform_monthly_emi,
       coalesce(sp.uniform_balance_due,0) uniform_balance_due,
       sp.police_verification_expiry,sp.medical_fitness_expiry,
       coalesce(e.status,'active') employee_status,

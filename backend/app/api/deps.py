@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.crud.crud_user import user as crud_user
 from app.models.user import User
+from app.models.internal_staff import InternalStaff
 from app.models.enums import UserRole
 from app.schemas.token import TokenPayload
 from app.api.permissions import has_permission
@@ -44,6 +45,8 @@ def _request_permission(request: Request) -> str | None:
         return "user_management.edit"
     if module == "staff" and (path.endswith("/submit") or path.endswith("/status")):
         return "staff.edit"
+    if module == "staff" and path.endswith("/login"):
+        return "staff.edit"
     if module == "staff" and path.endswith("/decision"):
         return "staff.approve"
     if module == "rosters" and path.endswith("/cancel"): return "rosters.edit"
@@ -75,6 +78,9 @@ def get_current_user(request: Request, db: Session = Depends(get_db), token: str
         raise credentials_exception
     user = crud_user.get(db, id=user_id_int)
     if user is None or not user.is_active:
+        raise credentials_exception
+    staff = db.query(InternalStaff).filter_by(user_id=user.id).first()
+    if staff and staff.status != 'ACTIVE':
         raise credentials_exception
     if payload.get('sv',0) != user.session_version:
         raise credentials_exception

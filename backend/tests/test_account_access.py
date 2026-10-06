@@ -58,8 +58,9 @@ def test_account_creation_first_password_change_and_session_revocation(access_cl
 def test_permission_overrides_are_immediate_and_role_limits_hold(access_client):
     http,sessions,headers=access_client
     uid=create(http,headers).json()['id']
-    for key,allowed in [('sites.view',False),('staff.view',True),('staff.create',True)]:
+    for key,allowed in [('sites.view',False),('staff.view',True)]:
         assert http.put(f'/api/v1/users/{uid}/permissions',headers=headers,json={'permission_key':key,'allowed':allowed}).status_code==200
+    assert http.put(f'/api/v1/users/{uid}/permissions',headers=headers,json={'permission_key':'staff.create','allowed':True}).status_code==422
     permissions=http.get(f'/api/v1/users/{uid}/permissions',headers=headers).json()
     assert not permissions['permissions']['sites.view'] and permissions['permissions']['staff.view']
     assert http.put(f'/api/v1/users/{uid}/permissions',headers=headers,json={'permission_key':'user_management.create','allowed':True}).status_code==422
@@ -71,7 +72,7 @@ def test_permission_overrides_are_immediate_and_role_limits_hold(access_client):
         assert not has_permission(db,account,'user_management.create')
         account.is_superuser=True;db.commit()
         assert not has_permission(db,account,'user_management.create')
-    assert len(http.get(f'/api/v1/users/{uid}/audit',headers=headers).json())==4
+    assert len(http.get(f'/api/v1/users/{uid}/audit',headers=headers).json())==3
 
 
 def test_administrator_only_creation_and_upper_role_assignment(access_client):

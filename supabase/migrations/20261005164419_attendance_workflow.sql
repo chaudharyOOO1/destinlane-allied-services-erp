@@ -35,6 +35,11 @@ create policy attendance_devices_backend_only on public.employee_device_bindings
 create policy attendance_selfies_backend_only on public.attendance_selfies to anon,authenticated using(false) with check(false);
 create policy attendance_history_backend_only on public.attendance_history to anon,authenticated using(false) with check(false);
 create policy attendance_corrections_backend_only on public.attendance_corrections to anon,authenticated using(false) with check(false);
+do $$ begin
+if to_regclass('storage.buckets') is not null and to_regclass('storage.objects') is not null then
 update storage.buckets set public=false,file_size_limit=3145728,allowed_mime_types=array['image/jpeg','image/png','image/webp'] where id='employee-selfies';
 drop policy if exists "Allow employee selfie uploads" on storage.objects;
 create policy employee_selfies_backend_only on storage.objects as restrictive for all to anon,authenticated using(bucket_id<>'employee-selfies') with check(bucket_id<>'employee-selfies');
+
+end if;
+end; $$;

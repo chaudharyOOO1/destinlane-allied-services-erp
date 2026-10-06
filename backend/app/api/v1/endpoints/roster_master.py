@@ -12,7 +12,7 @@ router=APIRouter()
 
 @router.get('')
 def list_rosters(start:date|None=None,end:date|None=None,site_id:int|None=None,status:str|None=None,db:Session=Depends(get_db),current_user=Depends(require_ops_or_admin)):
-    sql="""select r.*,s.site_name,s.site_code,s.branch,c.company_name as client_name,e.id as employee_id,e.employee_code,e.name from shift_rosters r join sites s on s.id=r.site_id join clients c on c.id=s.client_id join guard_profiles g on g.id=r.guard_id join employees e on e.id=g.employee_id where (cast(:start as date) is null or r.date>=:start) and (cast(:end as date) is null or r.date<=:end) and (cast(:site as integer) is null or r.site_id=:site) and (cast(:status as text) is null or r.status=:status) order by r.date desc,r.id desc"""
+    sql="""select r.*,s.site_name,s.site_code,s.branch,c.company_name as client_name,e.id as employee_id,e.employee_code,e.name from shift_rosters r join sites s on s.id=r.site_id join clients c on c.id=s.client_id join guard_profiles g on g.id=r.guard_id join employees e on e.id=g.employee_id where (cast(:start as date) is null or r.date>=:start) and (cast(:end as date) is null or r.date<=:end) and (cast(:site as integer) is null or r.site_id=:site) and (cast(:status as text) is null or cast(r.status as text)=:status) order by r.date desc,r.id desc"""
     return [dict(r) for r in db.execute(text(sql),{'start':start,'end':end,'site':site_id,'status':status}).mappings()]
 
 @router.get('/options')

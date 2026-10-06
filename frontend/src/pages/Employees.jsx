@@ -600,7 +600,7 @@ export default function Employees() {
                 className={inputClass + " max-w-xs"}
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                placeholder="E-DAS-0070"
+                placeholder="DASE0070"
               />
               <button
                 className={buttonClass}

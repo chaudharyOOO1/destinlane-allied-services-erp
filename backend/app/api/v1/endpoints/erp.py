@@ -150,7 +150,7 @@ def compliance_expiry(
     """), {"cutoff": cutoff}).mappings().all()
     return [dict(r) for r in rows]
 
-@router.get("/payroll")
+@router.get("/payroll/salary-records")
 def payroll(month: Optional[str] = Query(None), db: Session = Depends(get_db), current_user=Depends(require_payroll)):
     sql = """
         select s.*, e.employee_code, e.name

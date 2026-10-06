@@ -1,7 +1,7 @@
 """Add administrator Login ID support
 
 Revision ID: 0003_login_id
-Revises: 0002_fortellus_roles_v2
+Revises: 0002_destinlane_roles_v2
 """
 
 from typing import Sequence, Union
@@ -9,7 +9,7 @@ from typing import Sequence, Union
 from alembic import op
 
 revision: str = "0003_login_id"
-down_revision: Union[str, None] = "0002_fortellus_roles_v2"
+down_revision: Union[str, None] = "0002_destinlane_roles_v2"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

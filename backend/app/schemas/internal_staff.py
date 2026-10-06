@@ -1,7 +1,9 @@
 import re
 from datetime import date
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, EmailStr, TypeAdapter, field_validator, model_validator
+from app.schemas.user import _validate_password_bytes
+from app.models.enums import UserRole
 
 
 class StaffProfile(BaseModel):
@@ -70,8 +72,7 @@ class StaffProfile(BaseModel):
     @field_validator('email')
     @classmethod
     def email_format(cls, value):
-        if value and not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', value): raise ValueError('Invalid email address.')
-        return value.lower()
+        return str(TypeAdapter(EmailStr).validate_python(value)) if value else ''
 
     @model_validator(mode='after')
     def dates_and_bank(self):
@@ -88,10 +89,23 @@ class StaffProfile(BaseModel):
             raise ValueError('Joining date cannot be in the future when submitting staff.')
 
 
+class StaffLoginCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    role: UserRole = UserRole.OPERATIONS
+    temporary_password: SecretStr = Field(min_length=12, max_length=72)
+    permissions: dict[str, bool] = Field(default_factory=dict)
+
+    @field_validator('temporary_password')
+    @classmethod
+    def password_bytes(cls, value):
+        _validate_password_bytes(value.get_secret_value())
+        return value
+
+
 class StaffCreate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     profile: StaffProfile
-    submit: bool = False
+    account: StaffLoginCreate
 
 
 class StaffUpdate(BaseModel):
@@ -112,3 +126,11 @@ class ApprovalSettingUpdate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     version: int = Field(ge=1)
     approver_id: int | None = Field(default=None, ge=1)
+
+
+class StaffAccessUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    version: int = Field(ge=1)
+    role: UserRole
+    is_active: bool
+    permissions: dict[str, bool] = Field(default_factory=dict)

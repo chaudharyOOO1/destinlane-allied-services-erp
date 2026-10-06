@@ -33,6 +33,7 @@ def permission_key(module: str, action: str = 'view') -> str:
 def permission_supported(role: str, key: str) -> bool:
     if key not in all_permission_keys(): return False
     module,action=key.split('.',1)
+    if module=='staff' and action in {'create','edit','approve'}: return role in {'OWNER','HR'}
     if module=='attendance' and role=='STAFF': return action in {'view','create'}
     if role not in MODULE_ROLES[module]: return False
     if module in {'owner','dashboard'}: return action in {'view','export'}
@@ -45,6 +46,7 @@ def permission_supported(role: str, key: str) -> bool:
 def role_allows(role: str, key: str) -> bool:
     if not permission_supported(role,key): return False
     module,action=key.split('.',1)
+    if role=='HR' and module=='staff': return action in {'view','create','edit'}
     if role in ADMINS: return True
     return action=='view' and module in ROLE_MODULE_DEFAULTS.get(role,[])
 
@@ -61,14 +63,14 @@ def has_permission(db: Session, user, key: str) -> bool:
     return bool(explicit.allowed) if explicit is not None else role_allows(role,key)
 
 
-def effective_permissions(db: Session, user) -> Dict[str,bool]:
+def effective_permissions(db: Session, user, include_inactive: bool = False) -> Dict[str,bool]:
     role=getattr(user.role,'value',str(user.role))
     result={permission_key(m,a):role_allows(role,permission_key(m,a)) for m in MODULES for a in ACTIONS}
     rows=db.execute(text('select permission_key,allowed from public.user_permissions where user_id=:user_id'),{'user_id':user.id}).all()
     if not (role=='OWNER' and user.is_superuser):
         for row in rows:
             if row.permission_key in result: result[row.permission_key]=bool(row.allowed) and permission_supported(role,row.permission_key)
-    if not user.is_active: return {key:False for key in result}
+    if not user.is_active and not include_inactive: return {key:False for key in result}
     return result
 
 

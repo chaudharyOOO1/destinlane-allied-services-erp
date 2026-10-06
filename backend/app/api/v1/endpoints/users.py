@@ -3,11 +3,13 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_active_user, require_admin
 from app.api.permissions import all_permission_keys, effective_permissions, permission_supported, MODULE_ROLES
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.security import get_password_hash
 from app.core.supabase_auth import provision_supabase_password_user
 from app.crud.crud_user import user as crud_user
@@ -36,9 +38,14 @@ def assert_unique(db, data, target_id=None):
 
 
 def assert_staff_login(db, login_id):
-    if login_id and login_id.startswith('S-DAS-'):
+    if login_id and login_id.startswith(('DASS','S-DAS-')):
         record=db.query(InternalStaff).filter_by(staff_code=login_id).first()
-        if not record or record.status!='ACTIVE': raise HTTPException(409,'Staff must be registered and approved before creating their login.')
+        if not record or record.status!='ACTIVE': raise HTTPException(409,'Staff must be registered and active before creating their login.')
+def assert_staff_account_manager(db, actor, target):
+    if actor.role not in {UserRole.OWNER,UserRole.HR} and db.query(InternalStaff).filter_by(user_id=target.id).first():
+        raise HTTPException(403,'Only the Owner or HR can manage staff ERP access.')
+
+
 ADMIN_ROLES = {UserRole.OWNER, UserRole.SUPER_ADMIN, UserRole.ADMIN}
 
 
@@ -58,6 +65,8 @@ def _assert_manage_target(current_user: User, target: User | None = None, new_ro
 
     if actor == "OWNER":
         return
+    if actor not in {"OWNER", "SUPER_ADMIN", "ADMIN"} and (target_role in ADMIN_ROLES or next_role in ADMIN_ROLES):
+        raise HTTPException(403, "Only the Owner can manage administrator accounts from Staff Master.")
     if target_role == "OWNER" or next_role == "OWNER":
         raise HTTPException(403, "Only the Owner can manage the Owner account.")
     if actor == "SUPER_ADMIN" and (target_role in {"SUPER_ADMIN", "ADMIN"} or next_role in {"SUPER_ADMIN", "ADMIN"}):
@@ -87,24 +96,36 @@ def create_user(
     user_in: UserCreate,
     current_user: User = Depends(require_admin),
 ) -> UserResponse:
+    try:
+        db_user = prepare_user(db, user_in, current_user)
+        db.commit(); db.refresh(db_user)
+        return db_user
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, 'Unable to create the account. Check for duplicate account details.') from None
+
+
+def prepare_user(db, user_in, current_user):
+    """Create and audit an account within the caller's database transaction."""
+    if user_in.login_id and user_in.login_id.startswith(('DASS','S-DAS-')) and current_user.role not in {UserRole.OWNER,UserRole.HR}:
+        raise HTTPException(403,'Only the Owner or HR can create staff logins.')
     assert_staff_login(db,user_in.login_id)
     if user_in.role in ADMIN_ROLES and current_user.role != UserRole.OWNER:
         raise HTTPException(403,'Only the Owner can create administrator accounts.')
     assert_unique(db,user_in.model_dump())
     auth_user = provision_supabase_password_user(email=user_in.email, password=user_in.password)
-    if not auth_user:
+    if not auth_user and not (settings.ALLOW_LOCAL_PASSWORD_FALLBACK and not settings.SUPABASE_URL):
         raise HTTPException(502, "Supabase Auth account provisioning failed.")
-
-    try:
-        data=user_in.model_dump(exclude={'password'})
-        db_user=User(**data,hashed_password=get_password_hash(user_in.password),must_change_password=True)
-        db.add(db_user);db.flush()
-        audit(db,current_user,db_user,'CREATE',{'login_id':db_user.login_id,'role':db_user.role.value,'is_active':db_user.is_active})
-        db.commit();db.refresh(db_user)
-        return db_user
-    except Exception:
-        db.rollback()
-        raise HTTPException(409, "Unable to create the account. Check for duplicate account details.")
+    data=user_in.model_dump(exclude={'password'})
+    db_user=User(**data,hashed_password=get_password_hash(user_in.password),must_change_password=True)
+    db.add(db_user);db.flush()
+    if user_in.login_id and user_in.login_id.startswith(('DASS','S-DAS-')):
+        staff=db.query(InternalStaff).filter_by(staff_code=user_in.login_id).with_for_update().one()
+        if staff.user_id is not None:
+            raise HTTPException(409,'This staff record already has an ERP account.')
+        staff.user_id=db_user.id
+    audit(db,current_user,db_user,'CREATE',{'login_id':db_user.login_id,'role':db_user.role.value,'is_active':db_user.is_active})
+    return db_user
 
 
 @router.get("/{user_id}", response_model=UserResponse)
@@ -133,6 +154,7 @@ def update_user(
     db_user = crud_user.get(db, id=user_id)
     if not db_user:
         raise HTTPException(404, "User not found.")
+    assert_staff_account_manager(db,current_user,db_user)
     _assert_manage_target(current_user, db_user, user_in.role)
 
     update_dict = user_in.model_dump(exclude_unset=True)
@@ -147,7 +169,13 @@ def update_user(
     if any(update_dict.get(k) is None for k in ('role','full_name','is_active') if k in update_dict):
         raise HTTPException(422,'Role, name and account status cannot be cleared.')
     if 'login_id' in update_dict and update_dict['login_id'] != db_user.login_id:
+        if db.query(InternalStaff).filter_by(user_id=db_user.id).first():
+            raise HTTPException(409,'A staff account uses its permanent staff ID as Login ID.')
         assert_staff_login(db,update_dict['login_id'])
+    if update_dict.get('is_active') is True:
+        staff = db.query(InternalStaff).filter_by(user_id=db_user.id).first()
+        if staff and staff.status != 'ACTIVE':
+            raise HTTPException(409,'Reactivate the staff record before enabling its ERP account.')
     assert_unique(db,update_dict,db_user.id)
     if "password" in update_dict:
         auth_user = provision_supabase_password_user(email=db_user.email, password=update_dict["password"])
@@ -185,6 +213,7 @@ def reset_password(
     db_user = crud_user.get(db, id=user_id)
     if not db_user:
         raise HTTPException(404, "User not found.")
+    assert_staff_account_manager(db,current_user,db_user)
     _assert_manage_target(current_user, db_user)
 
     auth_user = provision_supabase_password_user(email=db_user.email, password=data.new_password)
@@ -234,6 +263,7 @@ def set_user_permission(
     db_user = crud_user.get(db, id=user_id)
     if not db_user:
         raise HTTPException(404, "User not found.")
+    assert_staff_account_manager(db,current_user,db_user)
     _assert_manage_target(current_user, db_user)
     if data.allowed and not permission_supported(_role_value(db_user.role),data.permission_key):
         raise HTTPException(422,'This action is unavailable for the account role.')
@@ -270,6 +300,7 @@ def delete_user(
         raise HTTPException(404, "User not found.")
     if db_user.id == current_user.id:
         raise HTTPException(400, "You cannot delete your own account.")
+    assert_staff_account_manager(db,current_user,db_user)
     _assert_manage_target(current_user, db_user)
 
     if db_user.role in ADMIN_ROLES:

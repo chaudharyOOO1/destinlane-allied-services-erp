@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.api.deps import require_management, require_payroll, require_roles
 from app.models.enums import UserRole
 router=APIRouter()
-@router.get("/payroll")
+@router.get("/payroll/legacy-records")
 def payroll(db:Session=Depends(get_db),current_user=Depends(require_payroll)):
  q="""select s.*,e.employee_code,e.name from salary_records s join employees e on e.id=s.employee_id order by s.month desc,e.name"""
  return [dict(r) for r in db.execute(text(q)).mappings().all()]

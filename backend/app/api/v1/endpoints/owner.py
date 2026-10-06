@@ -12,8 +12,8 @@ router = APIRouter()
 def executive_summary(db: Session = Depends(get_db), current_user=Depends(require_management)):
     revenue = float(db.execute(text("select coalesce(sum(total_amount),0) from invoices where status <> 'DRAFT'")).scalar() or 0)
     expenses = float(db.execute(text("select coalesce(sum(amount),0) from expenses")).scalar() or 0)
-    payroll = float(db.execute(text("select coalesce(sum(net_pay),0) from salary_records where lifecycle_status in ('CALCULATED','APPROVED','DISBURSED','HELD')")).scalar() or 0)
-    statutory = float(db.execute(text("select coalesce(sum(pf+esic+lwf),0) from salary_records")).scalar() or 0)
+    payroll = float(db.execute(text("select coalesce(sum(net_pay),0) from salary_slips where lifecycle_status in ('CALCULATED','APPROVED','DISBURSED','HELD')")).scalar() or 0)
+    statutory = float(db.execute(text("select coalesce(sum(pf+esic+lwf),0) from salary_slips")).scalar() or 0)
     net_profit = revenue - expenses - payroll - statutory
     margin = round((net_profit / revenue * 100), 2) if revenue else 0
 
@@ -29,7 +29,7 @@ def executive_summary(db: Session = Depends(get_db), current_user=Depends(requir
     risks = []
     overdue = db.execute(text("""select i.invoice_number,c.company_name,i.due_date,i.total_amount
       from invoices i join clients c on c.id=i.client_id
-      where i.status in ('SENT','PARTIALLY_PAID','OVERDUE') and i.due_date < current_date - interval '15 days'""")).mappings().all()
+      where i.status::text in ('SENT','PARTIALLY_PAID','OVERDUE') and i.due_date < current_date - interval '15 days'""")).mappings().all()
     risks += [{"type":"FINANCIAL","severity":"HIGH","message":f"Invoice {r['invoice_number']} for {r['company_name']} is overdue by more than 15 days.","reference":dict(r)} for r in overdue]
     uniform = db.execute(text("""select e.employee_code,e.name,sp.uniform_balance_due
       from staff_profiles sp join employees e on e.id=sp.employee_id

@@ -8,6 +8,7 @@ class InternalStaff(BaseModel):
     staff_code = Column(String(30), nullable=False, unique=True)
     name = Column(String(150), nullable=False)
     phone = Column(String(10), nullable=False, unique=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True, unique=True)
     profile = Column(JSON, nullable=False)
     status = Column(String(20), nullable=False, default='DRAFT')
     approver_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'))

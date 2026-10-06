@@ -47,7 +47,7 @@ def options(db:Session=Depends(get_db),user=Depends(require_employee_office)):
 def check_code(code:str=Query(...,max_length=40),db:Session=Depends(get_db),user=Depends(require_employee_office)):
     import re
     value=code.strip().upper();row=db.execute(text('select id,employee_code,name,status from employees where employee_code=:code'),{'code':value}).mappings().first()
-    return {'valid_format':bool(re.fullmatch(r'E-DAS-\d{4,}',value)),'registered':bool(row),'employee':dict(row) if row else None}
+    return {'valid_format':bool(re.fullmatch(r'(?:DASE|E-DAS-)\d{4,}',value)),'registered':bool(row),'employee':dict(row) if row else None}
 
 
 @router.get('/ifsc-check')

@@ -12,8 +12,20 @@ permissions:
 
 jobs:
   backend:
-    name: Backend syntax and compile
+    name: Backend regression and PostgreSQL workflow
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: backend
@@ -25,11 +37,22 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install dependencies
-        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+        run: python -m pip install --upgrade pip && pip install -r requirements-dev.txt
       - name: Compile Python
         run: python -m compileall -q app
       - name: Run regression tests
-        run: python -m unittest discover -s tests -p 'test_*.py' -v
+        env:
+          TEST_POSTGRES_ADMIN_URL: postgresql+psycopg://postgres:postgres@localhost:5432/postgres
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine
+          engine = create_engine(os.environ['TEST_POSTGRES_ADMIN_URL'])
+          with engine.begin() as conn:
+              conn.exec_driver_sql('CREATE ROLE anon NOLOGIN')
+              conn.exec_driver_sql('CREATE ROLE authenticated NOLOGIN')
+          PY
+          python -m pytest tests -q
       - name: Validate imports
         env:
           SECRET_KEY: ci-test-secret-key

@@ -1,6 +1,77 @@
 # Security & Facility Management ERP - Backend API
 
-A modular, production-ready REST API built with **FastAPI**, **PostgreSQL**, **SQLAlchemy 2.0**, and **Alembic** designed for Security and Facility Management operations.
+A REST API built with **FastAPI**, **PostgreSQL**, **SQLAlchemy 2.0**, and **Alembic** for Security and Facility Management operations.
+
+## Reproducible local database
+
+Use Python 3.12+ and PostgreSQL 17 for the tested development workflow. From
+`backend`, install dependencies with `pip install -r requirements-dev.txt`.
+
+Create a **new, empty database** owned by your local backend role. As a local
+database administrator, create the browser roles used by the security policies
+once (Supabase already supplies these roles):
+
+```sql
+CREATE ROLE anon NOLOGIN;
+CREATE ROLE authenticated NOLOGIN;
+```
+
+Supply `SECRET_KEY` through an ignored `.env` or the process environment, set
+`DATABASE_URL` to that new database, then run from `backend`:
+
+```bash
+alembic upgrade head
+alembic current
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+The migration chain includes the missing enterprise baseline, followed by a
+fixed manifest of the existing SQL migrations. Repeating `upgrade head` is a
+no-op. New SQL migrations must be registered in a new Alembic revision; adding
+a file does not alter an already-applied revision.
+
+`create_tables.py` creates only ORM tables and is **not** a complete ERP bootstrap.
+Do not stamp or replay the new baseline over an existing populated, unversioned
+database. Existing Supabase environments must keep their migration history and
+be assessed separately before applying changes. This setup does not migrate or
+modify production data.
+
+On PostgreSQL without Supabase Storage, database setup still succeeds; storage
+DDL runs only when the actual `storage.buckets` and `storage.objects` tables
+exist. Real private document uploads, selfies, signed viewing links and email
+recovery require Supabase configuration. No substitute storage schema is created.
+
+The bootstrap seeds no employees, bank records or credentials. Configure company
+branches, active clients/sites, approved IFSC records, joining approvers and shift
+rules through the ERP before using operational workflows. Local password fallback
+is opt-in with `ALLOW_LOCAL_PASSWORD_FALLBACK=True` and is not a production default.
+
+## Regression and integration validation
+
+```bash
+python -m pytest tests -q
+```
+
+For the PostgreSQL workflow test, set `TEST_POSTGRES_ADMIN_URL` securely in your
+process environment to a **local** administrator connection with `CREATEDB` and
+the two roles above, then run:
+
+```bash
+python -m pytest tests/test_postgres_workflow.py -q
+```
+
+The test creates a uniquely named disposable database, runs migrations twice,
+checks ORM columns and browser-role restrictions, and exercises authenticated
+HTTP requests for joining/document approval, deployment, approved manual
+attendance, payroll, PDF payslip and invoice generation. It checks amounts and
+repeatability and removes its own test database. Private object storage and the
+attendance clock are stubbed; production Supabase and physical GPS/camera behavior
+are not covered. Without `TEST_POSTGRES_ADMIN_URL`, that integration test is
+explicitly skipped. ERP CI supplies PostgreSQL and runs it alongside regressions.
+
+`GET /api/v1/erp/payroll` is the canonical salary-slip listing used by the payroll
+screen. Legacy salary records remain available at `/api/v1/erp/payroll/salary-records`
+and `/api/v1/erp/payroll/legacy-records`.
 
 ---
 

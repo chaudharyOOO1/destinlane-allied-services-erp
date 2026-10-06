@@ -6,7 +6,7 @@ The employee page contains four sections: Employee Master, Employee Creation, Em
 
 ## Creation and approval
 
-Intimation requires employee name, father's name, Aadhaar, mobile number, an active client and an active company branch. Submission atomically creates an intimation, employee and joining file. PostgreSQL issues the permanent `E-DAS-0070` onward ID immediately. Codes cannot be changed. Unique Aadhaar and mobile constraints prevent duplicate files.
+Intimation requires employee name, father's name, Aadhaar, mobile number, an active client and an active company branch. Submission atomically creates an intimation, employee and joining file. PostgreSQL issues the permanent `DASE0070` onward ID immediately (existing `E-DAS-` IDs remain valid). Codes cannot be changed. Unique Aadhaar and mobile constraints prevent duplicate files.
 
 Joining files support partial saves, resumption, version conflict detection and returned corrections. Details include personal and employment information, identity, emergency contact, verified bank/branch/IFSC, nominee, UAN/ESIC, gunman information and uniform issue/EMI. Dates, Aadhaar checksum, PAN, phone and bank formats are validated on the server. Final submission requires an adult employee, required details and valid document uploads. Approved IFSC, bank and branch must match the imported bank master; browser verification flags are never trusted.
 
