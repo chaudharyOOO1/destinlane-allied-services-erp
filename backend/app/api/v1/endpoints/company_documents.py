@@ -28,7 +28,7 @@ def response_document(row):
 @router.get('')
 def list_documents(db: Session = Depends(get_db), current_user=Depends(require_company_staff)):
     query = db.query(CompanyDocument)
-    if current_user.role.value != 'OWNER':
+    if current_user.role.value not in {'OWNER','SUPER_ADMIN'}:
         query = query.filter(CompanyDocument.is_archived.is_(False))
     return {'document_types': DOCUMENT_TYPES, 'documents': [response_document(row) for row in query.order_by(CompanyDocument.created_at.desc()).all()]}
 
@@ -92,7 +92,7 @@ async def upload_document(document_type: str = Form(...), title: str = Form(''),
 @router.get('/{document_id}/download')
 def download_document(document_id: int, db: Session = Depends(get_db), current_user=Depends(require_company_staff)):
     row = db.get(CompanyDocument, document_id)
-    if not row or (row.is_archived and current_user.role.value != 'OWNER'):
+    if not row or (row.is_archived and current_user.role.value not in {'OWNER','SUPER_ADMIN'}):
         raise HTTPException(404, 'Company document not found.')
     return {'url': signed_company_url(row.storage_path), 'expires_in': 60}
 

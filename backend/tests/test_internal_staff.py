@@ -46,8 +46,8 @@ def test_one_save_creates_staff_login_permissions_and_safe_audit(staff_client):
     assert http.put(BASE+f"/{row['id']}",headers=headers,json={'version':1,'profile':PROFILE}).status_code==409
     assert http.post(BASE+f"/{row['id']}/login",headers=headers,json=ACCOUNT).status_code==409
 
-@pytest.mark.parametrize('value',[UserRole.ADMIN,UserRole.SUPER_ADMIN,UserRole.STAFF,UserRole.CLIENT,UserRole.SUPERVISOR,UserRole.OPERATIONS,UserRole.ACCOUNTS])
-def test_only_owner_and_hr_create_even_with_explicit_allow(staff_client,value):
+@pytest.mark.parametrize('value',[UserRole.ADMIN,UserRole.STAFF,UserRole.CLIENT,UserRole.SUPERVISOR,UserRole.OPERATIONS,UserRole.ACCOUNTS])
+def test_management_it_and_hr_only_create_even_with_explicit_allow(staff_client,value):
     http,sessions,headers=staff_client;role(sessions,value)
     with sessions() as db:
         db.execute(text("insert into public.user_permissions values(1,'staff.create',true)"));db.commit()
@@ -120,3 +120,12 @@ def test_existing_branch_assignment_only(staff_client):
     assert http.get(BASE+'/office-options',headers=headers).json()['branches']==[{'code':'DDN','name':'Dehradun'}]
     assert create(http,headers,profile={**PROFILE,'branch':'OLD'}).status_code==422
     assert create(http,headers,profile={**PROFILE,'branch':'DDN'}).status_code==201
+
+
+def test_it_super_admin_can_create_staff_and_management_accounts(staff_client):
+    http,sessions,headers=staff_client;role(sessions,UserRole.SUPER_ADMIN)
+    result=create(http,headers,account={**ACCOUNT,'role':'OWNER'})
+    assert result.status_code==201,result.text
+    row=result.json();assert row['account']['role']=='OWNER'
+    updated=http.put(BASE+f"/{row['id']}/login",headers=headers,json={'version':1,'role':'OWNER','is_active':False})
+    assert updated.status_code==200,updated.text

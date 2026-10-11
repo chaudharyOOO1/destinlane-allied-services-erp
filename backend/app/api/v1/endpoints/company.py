@@ -22,7 +22,7 @@ def require_company_staff(current_user=Depends(get_current_active_user)):
 
 def assert_company_editable(db, current_user, *, lock=False):
     row = db.get(CompanySettings, 1, with_for_update=lock, populate_existing=lock)
-    if row and row.submitted_at and current_user.role != UserRole.OWNER:
+    if row and row.submitted_at and current_user.role not in {UserRole.OWNER,UserRole.SUPER_ADMIN}:
         raise HTTPException(403, 'This company profile has been submitted. Only the Owner can make changes.')
     return row
 

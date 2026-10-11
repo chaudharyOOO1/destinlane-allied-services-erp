@@ -33,11 +33,11 @@ def permission_key(module: str, action: str = 'view') -> str:
 def permission_supported(role: str, key: str) -> bool:
     if key not in all_permission_keys(): return False
     module,action=key.split('.',1)
-    if module=='staff' and action in {'create','edit','approve'}: return role in {'OWNER','HR'}
+    if module=='staff' and action in {'create','edit','approve'}: return role in {'OWNER','SUPER_ADMIN','HR'}
     if module=='attendance' and role=='STAFF': return action in {'view','create'}
     if role not in MODULE_ROLES[module]: return False
     if module in {'owner','dashboard'}: return action in {'view','export'}
-    if module=='risks': return role=='OWNER' or action in {'view','export'}
+    if module=='risks': return role in {'OWNER','SUPER_ADMIN'} or action in {'view','export'}
     if module=='company' and role not in ADMINS: return action=='view'
     if module in {'clients','contracts'} and role not in ADMINS: return action in {'view','export'}
     return True

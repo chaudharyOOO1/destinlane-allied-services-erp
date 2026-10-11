@@ -36,7 +36,7 @@ def options(db:Session=Depends(get_db),user=Depends(require_employee_office)):
     sites=[dict(x) for x in db.execute(text('select id,site_name,client_id,branch from sites where is_active=true order by site_name')).mappings()]
     branches=[{'code':x['code'],'name':x['name']} for x in (company.profile.get('branches',[]) if company else []) if x.get('is_active',True)]
     approvers=[]
-    if user.role.value=='OWNER':
+    if user.role.value in {'OWNER','SUPER_ADMIN'}:
         from app.models.user import User
         from app.api.permissions import has_permission
         approvers=[{'id':u.id,'name':u.full_name,'role':u.role.value} for u in db.query(User).filter(User.is_active.is_(True)).all() if u.role.value in {'OWNER','SUPER_ADMIN','ADMIN','HR','OPERATIONS','ACCOUNTS'} and has_permission(db,u,'employees.approve') and has_permission(db,u,'employees.view')]

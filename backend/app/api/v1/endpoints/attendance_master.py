@@ -42,7 +42,7 @@ def options(db:Session=Depends(get_db),current_user=Depends(require_ops_or_admin
     return {'sites':[dict(r) for r in db.execute(text('select id,site_name,site_code from sites where is_active=true order by site_name')).mappings().all()],
       'rules':[dict(r) for r in db.execute(text('select * from attendance_shift_rules order by site_id,shift_type')).mappings().all()],
       'approvers':[{'id':u.id,'name':u.full_name or u.login_id} for u in users if has_permission(db,u,'attendance.approve')],
-      'employees':[dict(r) for r in db.execute(text("select e.id,e.name,e.employee_code,(a.employee_id is not null) access_enabled,(d.employee_id is not null) device_bound from employees e left join employee_attendance_access a on a.employee_id=e.id left join employee_device_bindings d on d.employee_id=e.id where upper(e.status)='ACTIVE' order by e.name")).mappings().all()] if current_user.role.value=='OWNER' else []}
+      'employees':[dict(r) for r in db.execute(text("select e.id,e.name,e.employee_code,(a.employee_id is not null) access_enabled,(d.employee_id is not null) device_bound from employees e left join employee_attendance_access a on a.employee_id=e.id left join employee_device_bindings d on d.employee_id=e.id where upper(e.status)='ACTIVE' order by e.name")).mappings().all()] if current_user.role.value in {'OWNER','SUPER_ADMIN'} else []}
 
 @router.put('/rules')
 def save_rule(payload:rules.Rule,db:Session=Depends(get_db),current_user=Depends(require_owner)):
@@ -66,7 +66,7 @@ def corrections(db:Session=Depends(get_db),current_user=Depends(require_ops_or_a
 def request_correction(payload:rules.Correction,db:Session=Depends(get_db),current_user=Depends(require_ops_or_admin)):
     approver=db.get(User,payload.assigned_to)
     if not approver or not has_permission(db,approver,'attendance.approve'):raise HTTPException(422,'Select an active reviewer with attendance approval access.')
-    if approver.id==current_user.id and current_user.role.value!='OWNER':raise HTTPException(422,'Select a different reviewer.')
+    if approver.id==current_user.id and current_user.role.value not in {'OWNER','SUPER_ADMIN'}:raise HTTPException(422,'Select a different reviewer.')
     try:result=rules.request_correction(db,payload,current_user,approver);db.commit();return result
     except Exception:db.rollback();raise
 
@@ -125,7 +125,7 @@ def review(attendance_id:UUID,payload:rules.Review,db:Session=Depends(get_db),cu
     record=rules.record_for(db,r['id'])
     if record['version']!=payload.version:raise HTTPException(409,'Attendance changed. Refresh before reviewing.')
     if record['verification_status']!='PENDING_REVIEW' or not record['check_out_time']:raise HTTPException(409,'Only completed punches awaiting review can be decided.')
-    if r['user_id']==current_user.id and current_user.role.value!='OWNER':raise HTTPException(403,'Employees cannot review their own attendance.')
+    if r['user_id']==current_user.id and current_user.role.value not in {'OWNER','SUPER_ADMIN'}:raise HTTPException(403,'Employees cannot review their own attendance.')
     after=db.execute(text("update attendance set verification_status=:status,verified_at=:now,updated_at=:now,version=version+1 where id=:id returning *"),{'status':'VERIFIED' if payload.decision=='APPROVE' else 'REJECTED','now':rules.now(),'id':str(attendance_id)}).mappings().one()
     rules.audit(db,'PUNCH_'+payload.decision,record['employee_id'],record['id'],current_user,reason=payload.reason,version=after['version']);db.commit();return rules.public(after)
 

@@ -256,7 +256,7 @@ def verify_document(employee_id: UUID, document_id: UUID, payload: dict, db: Ses
     if not has_permission(db,current_user,'employees.approve'): raise HTTPException(403,'Employee approval permission is required to verify documents.')
     person=joining_employee(db,employee_id,True)
     if person['status'].upper()=='TERMINATED': raise HTTPException(409,'Terminated employee files are locked.')
-    if person['status'].upper()=='PENDING_APPROVAL' and current_user.role.value!='OWNER':
+    if person['status'].upper()=='PENDING_APPROVAL' and current_user.role.value not in {'OWNER','SUPER_ADMIN'}:
         req=db.execute(text("select assigned_to from employee_approval_requests where employee_id=:id and status='PENDING'"),{'id':str(employee_id)}).first()
         if not req or req[0]!=current_user.id: raise HTTPException(403,'Only the assigned approver may review this submitted file.')
     status=str(payload.get('status','')).upper();notes=str(payload.get('notes') or '').strip()

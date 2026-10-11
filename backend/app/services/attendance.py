@@ -181,7 +181,7 @@ def decide_correction(db,rid,data,user):
     request=row(db,'select * from attendance_corrections where id=:id for update',{'id':rid})
     if not request:raise HTTPException(404,'Correction request not found.')
     if request['status']!='PENDING':raise HTTPException(409,'This request was already decided.')
-    owner=user.role.value=='OWNER'
+    owner=user.role.value in {'OWNER','SUPER_ADMIN'}
     if not owner and (request['assigned_to']!=user.id or request['submitted_by']==user.id):raise HTTPException(403,'Only the assigned reviewer can decide this request; submitters cannot approve their own correction.')
     r=roster(db,request['roster_id']);unlocked(db,r);existing=record_for(db,r['id'])
     if data.decision=='APPROVE':

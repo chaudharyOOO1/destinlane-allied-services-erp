@@ -105,9 +105,9 @@ def submit_joining(employee_id:UUID,data:dict,db:Session=Depends(get_db),user=De
     if data.get('version')!=row['version']: raise HTTPException(409,'Reopen the current employee file before submitting.')
     draft=db.execute(text('select status from employee_joining_drafts where employee_id=:id'),{'id':str(employee_id)}).first()
     if not draft or draft[0] not in {'DRAFT','REJECTED'}: raise HTTPException(409,'This file is already submitted or approved.')
-    validate_links(db,profile(row)); ready=readiness(db,row,user.role.value=='OWNER')
+    validate_links(db,profile(row)); ready=readiness(db,row,user.role.value in {'OWNER','SUPER_ADMIN'})
     if not ready['ready']: raise HTTPException(422,ready)
-    if user.role.value=='OWNER':
+    if user.role.value in {'OWNER','SUPER_ADMIN'}:
         activate(db,row,user);db.commit();return {'status':'APPROVED','employee_id':str(employee_id),'final':True}
     chain=approval_chain(db);request=add_request(db,employee_id,user,chain)
     db.execute(text("update employees set status='PENDING_APPROVAL',version=version+1,updated_at=now() where id=:id"),{'id':str(employee_id)})
@@ -117,7 +117,7 @@ def submit_joining(employee_id:UUID,data:dict,db:Session=Depends(get_db),user=De
 
 @router.get('/approvals')
 def list_approvals(db:Session=Depends(get_db),user=Depends(require_employee_office)):
-    rows=db.execute(text("select ar.*,e.name,e.employee_code from employee_approval_requests ar join employees e on e.id=ar.employee_id where ar.status='PENDING' and (:owner or ar.assigned_to=:user) order by ar.submitted_at"),{'owner':user.role.value=='OWNER','user':user.id}).mappings().all()
+    rows=db.execute(text("select ar.*,e.name,e.employee_code from employee_approval_requests ar join employees e on e.id=ar.employee_id where ar.status='PENDING' and (:owner or ar.assigned_to=:user) order by ar.submitted_at"),{'owner':user.role.value in {'OWNER','SUPER_ADMIN'},'user':user.id}).mappings().all()
     return [dict(r) for r in rows]
 
 
@@ -129,7 +129,7 @@ def decide(approval_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(re
     row=employee(db,target[0],True)
     req=db.execute(text('select * from employee_approval_requests where id=:id for update'),{'id':str(approval_id)}).mappings().one()
     if req['status']!='PENDING': raise HTTPException(409,'This request is already decided.')
-    if user.role.value!='OWNER' and req['assigned_to']!=user.id: raise HTTPException(403,'This request is assigned to another approver.')
+    if user.role.value not in {'OWNER','SUPER_ADMIN'} and req['assigned_to']!=user.id: raise HTTPException(403,'This request is assigned to another approver.')
     decision=data.get('decision');remarks=str(data.get('remarks') or '').strip()
     if decision not in {'APPROVE','REJECT'}: raise HTTPException(422,'Choose APPROVE or REJECT.')
     if decision=='REJECT' and not remarks: raise HTTPException(422,'Return remarks are required.')

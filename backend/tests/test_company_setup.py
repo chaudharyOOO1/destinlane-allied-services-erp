@@ -62,7 +62,7 @@ def test_duplicate_branch_codes_are_rejected():
         CompanyProfile(branches=[{'code':'ddn','name':'One'}, {'code':'DDN','name':'Two'}])
 
 
-def test_submitted_profile_is_owner_only_even_for_super_admin(company_client):
+def test_submitted_profile_requires_management_or_it_super_admin(company_client):
     http, sessions, headers = company_client
     set_role(sessions, UserRole.ADMIN)
     profile = http.get('/api/v1/erp/company', headers=headers).json()['profile']
@@ -71,11 +71,11 @@ def test_submitted_profile_is_owner_only_even_for_super_admin(company_client):
     result = http.put('/api/v1/erp/company', headers=headers, json={'version':0,'profile':profile,'submit':True})
     assert result.status_code == 200
     assert result.json()['status'] == 'SUBMITTED'
-    for role in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+    for role in [UserRole.ADMIN]:
         set_role(sessions, role)
         assert http.put('/api/v1/erp/company', headers=headers, json={'version':1,'profile':profile}).status_code == 403
         assert http.post('/api/v1/erp/company/documents', headers=headers, data={'document_type':'COI'}, files={'file':('test.pdf',b'%PDF-1.4\nverified-test','application/pdf')}).status_code == 403
-    set_role(sessions, UserRole.OWNER)
+    set_role(sessions, UserRole.SUPER_ADMIN)
     profile['city'] = 'Dehradun'
     assert http.put('/api/v1/erp/company', headers=headers, json={'version':1,'profile':profile}).status_code == 200
     with sessions() as db:

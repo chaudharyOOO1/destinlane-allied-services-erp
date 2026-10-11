@@ -118,11 +118,11 @@ def require_roles(*roles: UserRole, allow_super_admin: bool = True) -> RoleCheck
     return RoleChecker(list(roles), allow_super_admin=allow_super_admin)
 
 def get_current_owner(current_user: User = Depends(get_current_active_user)) -> User:
-    if current_user.role != UserRole.OWNER:
+    if current_user.role not in {UserRole.OWNER,UserRole.SUPER_ADMIN}:
         raise HTTPException(403, "Owner clearance is required for this operation.")
     return current_user
 
-require_owner = RoleChecker([UserRole.OWNER], allow_super_admin=False)
+require_owner = RoleChecker([UserRole.OWNER,UserRole.SUPER_ADMIN], allow_super_admin=False)
 require_admin = RoleChecker([UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.ADMIN])
 require_hr_or_admin = RoleChecker([UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.ADMIN,UserRole.HR])
 require_ops_or_admin = RoleChecker([UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.ADMIN,UserRole.OPERATIONS,UserRole.SUPERVISOR])

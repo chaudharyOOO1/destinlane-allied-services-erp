@@ -21,8 +21,8 @@ ADMINISTRATORS = {UserRole.OWNER, UserRole.SUPER_ADMIN, UserRole.ADMIN}
 
 
 def require_staff_administrator(user):
-    if user.role not in {UserRole.OWNER,UserRole.HR}:
-        raise HTTPException(403,'Only the Owner or HR can create staff or activate staff logins.')
+    if user.role not in {UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.HR}:
+        raise HTTPException(403,'Only Management, IT Super Admin or HR can create staff or activate staff logins.')
 
 
 def account_summary(user):
@@ -115,7 +115,7 @@ def office_options(db: Session = Depends(get_db), user=Depends(internal_access))
     company = db.get(CompanySettings,1)
     branches = company.profile.get('branches',[]) if company else []
     roles = ['HR','OPERATIONS','ACCOUNTS']
-    if user.role == UserRole.OWNER: roles = ['OWNER','SUPER_ADMIN','ADMIN'] + roles
+    if user.role in {UserRole.OWNER,UserRole.SUPER_ADMIN}: roles = ['OWNER','SUPER_ADMIN','ADMIN'] + roles
     return {'branches':[{'code':b['code'],'name':b['name']} for b in branches if b.get('is_active',True)],
             'login_roles':roles,'permissions':{role:{key:role_allows(role,key) for key in all_permission_keys()} for role in roles},
             'supported':{role:{key:permission_supported(role,key) for key in all_permission_keys()} for role in roles}}
@@ -130,7 +130,7 @@ def get_approval_settings(db: Session = Depends(get_db), user=Depends(internal_a
 
 @router.put('/approval-settings')
 def set_approval_settings(data: ApprovalSettingUpdate, db: Session = Depends(get_db), user=Depends(internal_access)):
-    if user.role != UserRole.OWNER: raise HTTPException(403, 'Only the Owner can assign approval responsibility.')
+    if user.role not in {UserRole.OWNER,UserRole.SUPER_ADMIN}: raise HTTPException(403, 'Only Management or IT Super Admin can assign approval responsibility.')
     if data.approver_id:
         target = db.get(User,data.approver_id)
         if not target or not target.is_active or target.role not in MANAGERS or not has_permission(db,target,'staff.approve') or not has_permission(db,target,'staff.view'):
@@ -196,7 +196,7 @@ def read_staff(staff_id: int, db: Session = Depends(get_db), user=Depends(intern
     row = db.get(InternalStaff, staff_id)
     if not row: raise HTTPException(404, 'Staff record not found.')
     response = with_account(db,row)
-    if row.user_id and user.role in {UserRole.OWNER,UserRole.HR}:
+    if row.user_id and user.role in {UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.HR}:
         response['permissions'] = effective_permissions(db,db.get(User,row.user_id),include_inactive=True)
     return response
 
@@ -260,7 +260,7 @@ def submit_staff(staff_id: int, data: StaffAction, db: Session = Depends(get_db)
 @router.post('/{staff_id}/decision')
 def decide_staff(staff_id: int, data: StaffAction, db: Session = Depends(get_db), user=Depends(internal_access)):
     row = get_locked(db,staff_id,data.version)
-    if user.role != UserRole.OWNER and row.approver_id != user.id: raise HTTPException(403, 'This staff approval is assigned to another account.')
+    if user.role not in {UserRole.OWNER,UserRole.SUPER_ADMIN} and row.approver_id != user.id: raise HTTPException(403, 'This staff approval is assigned to another account.')
     if row.status != 'PENDING': raise HTTPException(409, 'Staff record is not awaiting approval.')
     if data.decision == 'RETURN' and not data.reason: raise HTTPException(422, 'A return reason is required.')
     ready(StaffProfile(**row.profile))

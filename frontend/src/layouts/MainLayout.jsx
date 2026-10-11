@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { roleLabel } from '../utils/roleLabels';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCompany } from '../context/CompanyContext';
@@ -14,7 +15,7 @@ import {
 const NAV_GROUPS = [
   { label: 'Overview', items: [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/erp', permission: 'dashboard.view' },
-    { icon: Landmark, label: 'Owner Executive', path: '/owner-executive', permission: 'owner.view' },
+    { icon: Landmark, label: 'Management Dashboard', path: '/owner-executive', permission: 'owner.view' },
   ]},
   { label: 'Workforce', items: [
     { icon: UserRound, label: 'Staff Master', path: '/staff', permission: 'staff.view' },
@@ -107,7 +108,7 @@ export default function MainLayout({ children, onQuickAction = null }) {
                 </div>
                 <div className="hidden sm:block text-left leading-tight">
                   <p className="text-xs font-semibold text-slate-800">{user?.full_name?.split(' ')[0] || 'Admin'}</p>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">{role}</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">{roleLabel(role)}</p>
                 </div>
                 <ChevronDown className="hidden sm:block w-3.5 h-3.5 text-slate-400" />
               </button>
@@ -115,7 +116,7 @@ export default function MainLayout({ children, onQuickAction = null }) {
                 <div className="absolute right-0 top-full mt-2 w-60 bg-white border border-slate-200 rounded-xl shadow-xl p-2">
                   <div className="px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-100">
                     <p className="text-xs font-semibold text-slate-800">{user?.full_name || 'Account'}</p>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">{role}</p>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">{roleLabel(role)}</p>
                   </div>
                   <button onClick={() => { setPersonaMenuOpen(false); logout(); }} className="mt-2 w-full px-3 py-2 rounded-lg text-left text-xs font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2">
                     <LogOut className="w-3.5 h-3.5" /> Sign out

@@ -42,8 +42,8 @@ def assert_staff_login(db, login_id):
         record=db.query(InternalStaff).filter_by(staff_code=login_id).first()
         if not record or record.status!='ACTIVE': raise HTTPException(409,'Staff must be registered and active before creating their login.')
 def assert_staff_account_manager(db, actor, target):
-    if actor.role not in {UserRole.OWNER,UserRole.HR} and db.query(InternalStaff).filter_by(user_id=target.id).first():
-        raise HTTPException(403,'Only the Owner or HR can manage staff ERP access.')
+    if actor.role not in {UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.HR} and db.query(InternalStaff).filter_by(user_id=target.id).first():
+        raise HTTPException(403,'Only Management, IT Super Admin or HR can manage staff ERP access.')
 
 
 ADMIN_ROLES = {UserRole.OWNER, UserRole.SUPER_ADMIN, UserRole.ADMIN}
@@ -63,14 +63,12 @@ def _assert_manage_target(current_user: User, target: User | None = None, new_ro
             raise HTTPException(403, "You cannot change your own administrator role.")
         return
 
-    if actor == "OWNER":
+    if actor in {"OWNER","SUPER_ADMIN"}:
         return
     if actor not in {"OWNER", "SUPER_ADMIN", "ADMIN"} and (target_role in ADMIN_ROLES or next_role in ADMIN_ROLES):
         raise HTTPException(403, "Only the Owner can manage administrator accounts from Staff Master.")
     if target_role == "OWNER" or next_role == "OWNER":
         raise HTTPException(403, "Only the Owner can manage the Owner account.")
-    if actor == "SUPER_ADMIN" and (target_role in {"SUPER_ADMIN", "ADMIN"} or next_role in {"SUPER_ADMIN", "ADMIN"}):
-        raise HTTPException(403, "Super Admin cannot manage another administrator account.")
     if actor == "ADMIN" and (target_role in ADMIN_ROLES or next_role in ADMIN_ROLES):
         raise HTTPException(403, "Administrator cannot manage another administrator account.")
 
@@ -107,11 +105,11 @@ def create_user(
 
 def prepare_user(db, user_in, current_user):
     """Create and audit an account within the caller's database transaction."""
-    if user_in.login_id and user_in.login_id.startswith(('DASS','S-DAS-')) and current_user.role not in {UserRole.OWNER,UserRole.HR}:
-        raise HTTPException(403,'Only the Owner or HR can create staff logins.')
+    if user_in.login_id and user_in.login_id.startswith(('DASS','S-DAS-')) and current_user.role not in {UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.HR}:
+        raise HTTPException(403,'Only Management, IT Super Admin or HR can create staff logins.')
     assert_staff_login(db,user_in.login_id)
-    if user_in.role in ADMIN_ROLES and current_user.role != UserRole.OWNER:
-        raise HTTPException(403,'Only the Owner can create administrator accounts.')
+    if user_in.role in ADMIN_ROLES and current_user.role not in {UserRole.OWNER,UserRole.SUPER_ADMIN}:
+        raise HTTPException(403,'Only Management or IT Super Admin can create administrator accounts.')
     assert_unique(db,user_in.model_dump())
     auth_user = provision_supabase_password_user(email=user_in.email, password=user_in.password)
     if not auth_user and not (settings.ALLOW_LOCAL_PASSWORD_FALLBACK and not settings.SUPABASE_URL):

@@ -115,6 +115,9 @@ def postgres_workflow(monkeypatch):
 
 def test_bootstrap_and_employee_to_invoice(postgres_workflow):
     http, sessions, engine, today, start, owner_id, hr_id, client_id, site_id, objects = postgres_workflow
+    # IT Super Admin must complete the same full business workflow as Management.
+    with sessions() as db:
+        actor=db.get(User,owner_id);actor.role=UserRole.SUPER_ADMIN;actor.is_superuser=False;db.commit()
     inspector = inspect(engine)
     for table in Base.metadata.sorted_tables:
         assert set(table.columns.keys()) <= {c["name"] for c in inspector.get_columns(table.name)}, table.name
