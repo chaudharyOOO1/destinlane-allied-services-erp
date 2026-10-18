@@ -51,3 +51,5 @@ Roll back application deployment if needed; retain additive tables, evidence, au
 ## Results
 
 Final local results: 233 backend tests passed with PostgreSQL enabled; the travel browser journey and seven Staff Master browser cases passed; lint/build passed with existing warnings. Documentation links, shell syntax and whitespace checks passed. Detailed evidence and limitations are in the audit register. This handover does not claim deployed acceptance.
+
+Production application deployment is verified in the [release record](RELEASE_20261018.md). Real staff receipt acceptance remains a business check.

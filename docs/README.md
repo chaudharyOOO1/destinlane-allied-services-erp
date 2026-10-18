@@ -2,6 +2,8 @@
 
 ## Start here
 
+- [Verified production release record](engineering/RELEASE_20261018.md).
+
 - [Action plan and acceptance gates](ACTION_PLAN.md): approved scope, what/how/why, delivery order and current state.
 - [Audit and defect register](engineering/AUDIT.md): evidence, limitations and next investigations.
 - [Functional specification: saving and staff](functional/SAVING_AND_STAFF.md): business rules, API contracts and error behaviour.
