@@ -1,8 +1,10 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import company, company_documents, internal_staff
+from app.api.v1.endpoints import company, company_documents, internal_staff, travel_expenses, md_accounting
 from app.api.v1.endpoints import auth,users,erp,employees,employee_documents,employee_workflow,client_master,site_master,control_center,roster_master,attendance_master,erp_controls,accounts_master,mobile_sync,recruitment,staff,contract_master,payroll,owner
 
 api_router=APIRouter()
+api_router.include_router(md_accounting.router,prefix="/erp/md-accounting",tags=["MD Accounting & Bookkeeping"])
+api_router.include_router(travel_expenses.router,prefix="/erp/travel-expenses",tags=["Travel Expenses"])
 api_router.include_router(internal_staff.router,prefix="/erp/internal-staff",tags=["Internal Staff Master"])
 api_router.include_router(company.router,prefix="/erp/company",tags=["Company Setup"])
 api_router.include_router(company_documents.router,prefix="/erp/company/documents",tags=["Company Legal Documents"])

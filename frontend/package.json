@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
+    "test:staff-save": "bash scripts/test-browser.sh staff-save",
+    "test:travel-expenses": "bash scripts/test-browser.sh travel-expenses",
+    "test:md-accounting": "bash scripts/test-browser.sh md-accounting",
     "preview": "vite preview"
   },
   "dependencies": {

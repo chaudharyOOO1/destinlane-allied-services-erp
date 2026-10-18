@@ -29,6 +29,8 @@ const NAV_GROUPS = [
     { icon: MapPin, label: 'Sites & Deployment', path: '/sites', permission: 'sites.view' },
   ]},
   { label: 'Finance', items: [
+    { icon: Landmark, label: 'MD Books & Accounting', path: '/md-accounting', permission: 'md_accounting.view' },
+    { icon: ReceiptText, label: 'Travel Expenses', path: '/travel-expenses', permission: 'travel_expenses.view' },
     { icon: ReceiptText, label: 'Billing & Invoices', path: '/billing', permission: 'billing.view' },
     { icon: WalletCards, label: 'Payroll', path: '/payroll', permission: 'payroll.view' },
     { icon: CircleDollarSign, label: 'Accounts & GST', path: '/accounts', permission: 'finance.view' },

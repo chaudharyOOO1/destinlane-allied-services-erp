@@ -1,14 +1,17 @@
 from typing import Dict, List
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from app.core.config import settings
 
-MODULES = ['dashboard','employees','recruitment','staff','clients','contracts','sites','rosters','attendance','billing','payroll','finance','compliance','risks','owner','user_management','company']
-ACTIONS = ['view','create','edit','delete','approve','export']
+MODULES = ['dashboard','employees','recruitment','staff','clients','contracts','sites','rosters','attendance','billing','payroll','finance','compliance','risks','owner','user_management','company','travel_expenses','md_accounting']
+ACTIONS = ['view','create','edit','delete','approve','export','pay']
 ADMINS = ['OWNER','SUPER_ADMIN','ADMIN']
 OFFICE = ADMINS + ['HR','OPERATIONS','ACCOUNTS']
 # Page roles reflect the backend master endpoints. Special personal attendance routes
 # are separate from the attendance administration page.
 MODULE_ROLES = {
+ 'travel_expenses':OFFICE+['SUPERVISOR'],
+ 'md_accounting':['OWNER','SUPER_ADMIN'],
  'dashboard':ADMINS+['ACCOUNTS'], 'employees':OFFICE, 'recruitment':ADMINS+['HR'],
  'staff':OFFICE, 'company':OFFICE, 'user_management':ADMINS,
  'clients':OFFICE+['SUPERVISOR','CLIENT'], 'contracts':OFFICE,
@@ -33,6 +36,13 @@ def permission_key(module: str, action: str = 'view') -> str:
 def permission_supported(role: str, key: str) -> bool:
     if key not in all_permission_keys(): return False
     module,action=key.split('.',1)
+    if module == 'md_accounting': return role in {'OWNER','SUPER_ADMIN'} and action in {'view','create','edit','approve','export'}
+    if module == 'travel_expenses':
+        if role not in MODULE_ROLES[module]: return False
+        if action == 'approve': return role in {'OWNER','SUPER_ADMIN','HR'}
+        if action == 'pay': return role in {'OWNER','SUPER_ADMIN','ACCOUNTS'}
+        return action in {'view','create','edit'}
+    if action == 'pay': return False
     if module=='staff' and action in {'create','edit','approve'}: return role in {'OWNER','SUPER_ADMIN','HR'}
     if module=='attendance' and role=='STAFF': return action in {'view','create'}
     if role not in MODULE_ROLES[module]: return False
@@ -46,6 +56,7 @@ def permission_supported(role: str, key: str) -> bool:
 def role_allows(role: str, key: str) -> bool:
     if not permission_supported(role,key): return False
     module,action=key.split('.',1)
+    if module in {'travel_expenses','md_accounting'}: return True
     if role=='HR' and module=='staff': return action in {'view','create','edit'}
     if role in ADMINS: return True
     return action=='view' and module in ROLE_MODULE_DEFAULTS.get(role,[])
@@ -57,6 +68,7 @@ def _explicit_permission(db, user_id, key):
 
 def has_permission(db: Session, user, key: str) -> bool:
     role=getattr(user.role,'value',str(user.role))
+    if key.startswith('md_accounting.') and user.id != settings.MD_ACCOUNTING_USER_ID: return False
     if not user.is_active or not permission_supported(role,key): return False
     if role=='OWNER' and user.is_superuser: return True
     explicit=_explicit_permission(db,user.id,key)
@@ -70,6 +82,9 @@ def effective_permissions(db: Session, user, include_inactive: bool = False) -> 
     if not (role=='OWNER' and user.is_superuser):
         for row in rows:
             if row.permission_key in result: result[row.permission_key]=bool(row.allowed) and permission_supported(role,row.permission_key)
+    if user.id != settings.MD_ACCOUNTING_USER_ID:
+        for key in result:
+            if key.startswith('md_accounting.'): result[key]=False
     if not user.is_active and not include_inactive: return {key:False for key in result}
     return result
 

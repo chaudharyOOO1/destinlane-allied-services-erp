@@ -78,5 +78,11 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Staff save browser regression (simulated API)
+        run: npm run test:staff-save
+      - name: Travel expenses browser workflow (simulated API)
+        run: npm run test:travel-expenses
+      - name: MD accounting browser workflow (simulated API)
+        run: npm run test:md-accounting
       - name: Production build
         run: npm run build

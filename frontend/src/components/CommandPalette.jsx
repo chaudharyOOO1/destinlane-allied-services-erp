@@ -36,6 +36,8 @@ export default function CommandPalette({ isOpen, onClose, onAction = null }) {
   if (!isOpen) return null;
 
   const quickNav = [
+    { label: 'MD Bookkeeping & Accounting', path: '/md-accounting', icon: ReceiptText, category: 'Navigation' },
+    { label: 'Travel Expenses & Reimbursements', path: '/travel-expenses', icon: ReceiptText, category: 'Navigation' },
     { label: 'Operational Command Dashboard', path: '/dashboard', icon: Sparkles, category: 'Navigation' },
     { label: 'Security Personnel & Guard Dossiers', path: '/personnel', icon: Shield, category: 'Navigation' },
     { label: 'Client Accounts & Contracts', path: '/clients', icon: Users, category: 'Navigation' },

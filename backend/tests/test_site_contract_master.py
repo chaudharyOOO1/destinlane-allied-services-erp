@@ -10,17 +10,22 @@ from app.models.commercial import SiteCodeCounter,ClientContract,SiteRateCard,Co
 from app.models.site import Site
 from app.models.user import User
 from app.models.enums import UserRole
+from app.core.business_time import business_date
 
 SITES='/api/v1/erp/sites'
 CONTRACTS='/api/v1/erp/contracts'
-TODAY=date.today()
+TODAY=business_date()
 def day(offset):return (TODAY+timedelta(days=offset)).isoformat()
 SITE={'client_id':1,'site_name':'Test Site','address':'Test deployment address','city':'Dehradun','state':'Uttarakhand','postal_code':'248001','branch':'DDN'}
 CONTRACT={'client_id':1,'contract_number':'DAS-TEST-1','contract_start_date':day(-30),'contract_end_date':day(365),'status':'ACTIVE','service_verticals':['SECURITY','HEALTHCARE']}
 RATE={'contract_id':1,'vertical':'SECURITY','category':'Guard','daily_rate':'650.50','hourly_rate':'90.00','effective_from':day(1),'effective_to':day(90)}
 
 @pytest.fixture
-def masters(client):
+def masters(client,monkeypatch):
+    # Contract rules use India dates; freeze the same date for these examples.
+    # UTC date.today() makes the assertions fail after midnight in India.
+    from app.api.v1.endpoints import contract_master
+    monkeypatch.setattr(contract_master,'business_date',lambda:TODAY)
     http,sessions=client
     with sessions() as db:
         db.execute(text("ATTACH DATABASE ':memory:' AS public"))

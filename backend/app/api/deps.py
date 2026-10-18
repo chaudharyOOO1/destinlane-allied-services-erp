@@ -27,6 +27,7 @@ def _request_permission(request: Request) -> str | None:
     if path == "/erp/company/profile" and request.method.upper() == "GET":
         return None
     mappings = [
+        ("/erp/travel-expenses","travel_expenses"),("/erp/md-accounting","md_accounting"),
         ("/erp/company","company"),("/erp/internal-staff","staff"),
         ("/users","user_management"),("/owner","owner"),("/erp/employees","employees"),
         ("/erp/recruitment","recruitment"),("/erp/staff","employees"),("/erp/clients","clients"),
@@ -41,6 +42,15 @@ def _request_permission(request: Request) -> str | None:
     module = next((m for prefix,m in mappings if path == prefix or path.startswith(prefix + "/")), None)
     if module is None:
         return "__unknown__"
+    if module == 'md_accounting':
+        if path.endswith('/post') or path.endswith('/reverse'): return 'md_accounting.approve'
+        if path.endswith('/export'): return 'md_accounting.export'
+        if path.endswith('/calculate'): return 'md_accounting.view'
+        if path.endswith('/match') or path.endswith('/unmatch'): return 'md_accounting.edit'
+    if module == 'travel_expenses':
+        if path.endswith('/decision'): return 'travel_expenses.approve'
+        if path.endswith('/pay'): return 'travel_expenses.pay'
+        if path.endswith('/submit') or path.endswith('/receipts'): return 'travel_expenses.edit'
     if module == "user_management" and path.endswith("/reset-password"):
         return "user_management.edit"
     if module == "staff" and (path.endswith("/submit") or path.endswith("/status")):

@@ -6,8 +6,8 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useAccess } from '../context/AccessContext';
 
-const modules=['dashboard','employees','recruitment','clients','contracts','sites','rosters','attendance','billing','payroll','finance','compliance','risks','owner','user_management','company','staff'];
-const actions=['view','create','edit','delete','approve','export'];
+const modules=['dashboard','employees','recruitment','clients','contracts','sites','rosters','attendance','billing','payroll','finance','compliance','risks','owner','user_management','company','staff','travel_expenses'];
+const actions=['view','create','edit','delete','approve','export','pay'];
 const roles=['SUPER_ADMIN','OWNER','ADMIN','HR','OPERATIONS','ACCOUNTS','SUPERVISOR','CLIENT','STAFF'];
 
 export default function UserManagement(){

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     SUPABASE_URL: Union[str, None] = None
     SUPABASE_SERVICE_ROLE_KEY: Union[str, None] = None
     ALLOW_LOCAL_PASSWORD_FALLBACK: bool = False
+    MD_ACCOUNTING_USER_ID: int | None = None
     EMPLOYEE_DOCUMENT_BUCKET: str = "employee-documents"
 
     BACKEND_CORS_ORIGINS: Union[List[str], str] = [

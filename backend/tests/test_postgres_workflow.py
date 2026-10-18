@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
+from alembic.script import ScriptDirectory
 
 os.environ.setdefault("SECRET_KEY", secrets.token_urlsafe(32))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -122,7 +123,8 @@ def test_bootstrap_and_employee_to_invoice(postgres_workflow):
     for table in Base.metadata.sorted_tables:
         assert set(table.columns.keys()) <= {c["name"] for c in inspector.get_columns(table.name)}, table.name
     with engine.connect() as conn:
-        assert conn.execute(text("select version_num from alembic_version")).scalar_one() == "0007_compact_personnel_ids"
+        expected_head = ScriptDirectory(str(Path(__file__).resolve().parents[1] / 'alembic')).get_current_head()
+        assert conn.execute(text("select version_num from alembic_version")).scalar_one() == expected_head
         assert conn.execute(text("select count(*) from employees")).scalar_one() == 0
 
     def login(login_id):
