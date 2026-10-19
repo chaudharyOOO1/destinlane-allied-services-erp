@@ -38,4 +38,4 @@ A dashboard grant opens a page, not every source register. The backend checks ef
 
 Status: implemented, 19 October 2026.
 
-Use lazy route imports with an explicit loading state and reload/recovery boundary. This reduces the initial production JavaScript entry from roughly 659 kB to 193 kB before compression; individual module code is fetched as needed. Do not remove workflow validation or backend rules to reduce the bundle. Rendering/network recovery must not automatically repeat a mutation.
+Use lazy route imports with an explicit loading state and reload/recovery boundary. This reduces the initial production JavaScript entry from roughly 659 kB to 195 kB before compression; individual module code is fetched as needed. Do not remove workflow validation or backend rules to reduce the bundle. Rendering/network recovery must not automatically repeat a mutation.
