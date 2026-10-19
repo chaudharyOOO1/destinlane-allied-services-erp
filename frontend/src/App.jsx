@@ -5,7 +5,7 @@ import { CompanyProvider } from './context/CompanyContext';
 import CompanySettings from './pages/CompanySettings';
 import StaffMaster from './pages/StaffMaster';
 import TravelExpenses from './pages/TravelExpenses';
-import MDAccounting from './pages/MDAccounting';
+import MDWorkspace from './pages/MDWorkspace';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import AdminSetup from './pages/AdminSetup';
@@ -40,7 +40,7 @@ function App() {
     <Route element={<ProtectedRoute />}>
       <Route path="/staff" element={<StaffMaster />} />
       <Route path="/travel-expenses" element={<TravelExpenses />} />
-      <Route path="/md-accounting" element={<MDAccounting />} />
+      <Route path="/md-accounting" element={<MDWorkspace />} />
       <Route path="/company" element={<CompanySettings />} />
       <Route path="/erp" element={<ERPModules />} />
       <Route path="/dashboard" element={<Dashboard />} />

@@ -97,3 +97,9 @@ Production preparation: verified designated account ID 1 and prior READY deploym
 Deployment confirmation is recorded separately after production promotion. Actual MD sign-in, bank statement completeness, real private receipt upload, reconciled opening figures and statutory accountant acceptance remain business checks.
 
 Production promotion confirmed: app source 8ffe9b5, Vercel dpl_A9gHvxrsaKAGgr3oigUV843d9sR7 READY. Domain/front-end labels and anonymous API denial verified; private bucket/table grants and zero fabricated financial/business records confirmed. See RELEASE_20261018.md for rollback, acceptance limits and CI follow-up.
+
+## Company Money — 19 October 2026
+
+Approved simplification implemented over the existing MD ledger: everyday Money Out/In/Transfer forms, read-only preview, saved draft then explicit posting, Bank Review, business summaries and Advanced Accounting. Functional/user guides, source map and review invariants updated. No schema/dependency change. Exact amounts, classification, date/opening guards and the MD identity boundary are backend-owned. Operational records and bank imports do not silently recognise revenue/expenses.
+
+Evidence: 255 backend tests passed with local PostgreSQL integrations enabled (none skipped); 10 Chromium browser cases passed using simulated APIs; lint/build passed with existing warnings. Browser regression includes failed draft-list refresh, failed matching after successful posting, mobile widths and return from Advanced with a refreshed voucher version/status. Live deployment evidence belongs in `EVERYDAY_MONEY_RELEASE.md`; local checks alone are not live acceptance. Genuine openings, source classifications, complete statements and statutory review remain business/accountant tasks. Unknown mutation-response outcomes still require inspection before retry; no general idempotency layer was added.

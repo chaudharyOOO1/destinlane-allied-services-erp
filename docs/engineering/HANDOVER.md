@@ -1,6 +1,6 @@
 # Developer handover
 
-Updated: 18 October 2026. Start with [action plan](../ACTION_PLAN.md) and [audit](AUDIT.md). No prior chat history is required to continue this work.
+Updated: 19 October 2026. Start with [action plan](../ACTION_PLAN.md) and [audit](AUDIT.md). No prior chat history is required to continue this work.
 
 ## Architecture and entry points
 
@@ -45,6 +45,8 @@ From `frontend`:
 npm run lint
 npm run test:staff-save
 npm run test:travel-expenses
+npm run test:md-accounting
+npm run test:md-everyday
 npm run build
 ```
 
@@ -60,7 +62,7 @@ No schema or backend changes are required. Revert the frontend commit/deployment
 
 ## Release and recovery
 
-Changes in this batch are local, not deployed. Before a future release, inspect the diff and checks, update the functional/user docs and audit, verify the deployment target and SHA, and use test records outside production. A deploy is separate from database migration. See `STAFF_MASTER_RELEASE.md` for historical migration context; its final limitation is historical, not a current live status check.
+The initial saving, Travel and MD accounting changes were deployed on 18 October; see the release record. Subsequent changes require their own deployment evidence. Before a future release, inspect the diff and checks, update the functional/user docs and audit, verify the deployment target and SHA, and use test records outside production. A deploy is separate from database migration. See `STAFF_MASTER_RELEASE.md` for historical migration context; its final limitation is historical, not a current live status check.
 
 For schema changes, inspect the real environment and migration history, obtain a restorable backup, apply only unapplied forward migrations, and test rollback/compatibility. For application rollback, restore the prior deployment while retaining additive schema and issued IDs. Full database restore needs separate assessment of newer writes.
 
@@ -82,3 +84,7 @@ Read [travel release handover](TRAVEL_EXPENSES_RELEASE.md) for source entry poin
 ## MD bookkeeping addition
 
 Read [MD accounting release handover](MD_ACCOUNTING_RELEASE.md) before editing. This module is identity-bound and must not inherit ordinary owner/super-admin bypasses. `MD_ACCOUNTING_USER_ID` unset denies access. The browser runner now also supports `npm run test:md-accounting`. Monetary truth comes from posted journal lines, not operational summary totals.
+
+## Company Money simplification
+
+See [everyday money handover](EVERYDAY_MONEY_RELEASE.md). Start at `MDWorkspace.jsx` → `md_transactions.py` routes/service → existing journal posting/report service. No database migration or new financial truth store. Keep the MD identity boundary, exact backend arithmetic and advanced journal controls. Business categories must not count collections/loans/transfers as revenue or expense.

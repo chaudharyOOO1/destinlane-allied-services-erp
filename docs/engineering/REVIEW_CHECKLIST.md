@@ -16,3 +16,5 @@ Use this with the PR template. Mark not-applicable items with a reason; do not i
 - [ ] Release target, post-deployment checks, rollback and remaining risks are stated; local work is not labelled deployed.
 
 Branch protection and mandatory human reviews are repository settings, not enforced by this document or PR checkboxes.
+
+For Company Money: inspect business-action-to-ledger mappings; preview must be read-only, creation draft-only, client lines rejected, posting versioned, bank-match failure distinct from successful posting, and reports cumulative where appropriate. Run both `test:md-accounting` and `test:md-everyday`; backend `test_md_transactions.py` checks classifications and shared identity boundary.

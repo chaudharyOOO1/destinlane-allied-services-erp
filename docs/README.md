@@ -2,6 +2,8 @@
 
 ## Start here
 
+- [Company Money simplification and release](engineering/EVERYDAY_MONEY_RELEASE.md): everyday recording, backend mappings and verification.
+
 - [Verified production release record](engineering/RELEASE_20261018.md).
 
 - [Action plan and acceptance gates](ACTION_PLAN.md): approved scope, what/how/why, delivery order and current state.

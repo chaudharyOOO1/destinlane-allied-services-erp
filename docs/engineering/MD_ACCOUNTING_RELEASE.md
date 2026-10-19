@@ -36,3 +36,5 @@ This is an accountant-reviewed management bookkeeping foundation. It does not au
 241 backend tests and nine browser cases passed; lint/build passed with the warnings recorded in the audit. Protected pre-release database snapshot: `erp_release_backup_20261018` (60 public tables / 264 rows, row digests checked, browser access denied). This is not an off-site/provider backup and was not restore-tested. Applied/registered only new migrations 20261018120000 and 20261018150000. MD server binding is user ID 1. No production financial vouchers or fake travel claims were created. Application deployment results are recorded separately after promotion.
 
 Production deployment is now verified; see [release record](RELEASE_20261018.md) for source/deployment IDs, checks, rollback and remaining acceptance steps.
+
+The 19 October Company Money simplification preserves this engine and access boundary; see [everyday money handover](EVERYDAY_MONEY_RELEASE.md) for current UI/API entry points.

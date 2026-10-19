@@ -14,8 +14,8 @@ function errorText(error){const detail=error?.response?.data?.detail;return Arra
 function Label({label,children}){return <label className="block min-w-0 text-sm font-medium">{label}{children}</label>;}
 function DataTable({headers,rows}){return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{headers.map((text,i)=><th key={i} className="border-b p-2">{text}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i} className="border-b">{row.map((value,j)=><td key={j} className="p-2 align-top">{value}</td>)}</tr>)}</tbody></table>{!rows.length&&<p className="py-4 text-sm text-slate-500">No records.</p>}</div>;}
 
-export default function MDAccounting(){
- const [tab,setTab]=useState('Setup');
+export default function MDAccounting({initialTab='Setup',initialVoucherId=null,onBack=null}){
+ const [tab,setTab]=useState(initialTab);
  const [configuration,setConfiguration]=useState(null),[setupForm,setSetupForm]=useState(null);
  const [accounts,setAccounts]=useState([]),[journals,setJournals]=useState([]),[report,setReport]=useState(null);
  const [error,setError]=useState(''),[message,setMessage]=useState(''),[warning,setWarning]=useState(''),[busy,setBusy]=useState(false);
@@ -50,7 +50,8 @@ export default function MDAccounting(){
    setStatement(s.data);setBankLedger(l.data);
  },[bankId,configuration]);
  useEffect(()=>{loadBank().catch(err=>setError(errorText(err)));},[loadBank]);
- function showVoucher(data){setVoucherRecord(data);setVoucher({entry_date:data.entry_date,kind:data.kind,narration:data.narration,party:data.party,reference:data.reference,lines:data.lines.map(line=>({account_id:line.account_id,debit:line.debit,credit:line.credit,description:line.description}))});setDirty(false);}
+ const showVoucher=useCallback(data=>{setVoucherRecord(data);setVoucher({entry_date:data.entry_date,kind:data.kind,narration:data.narration,party:data.party,reference:data.reference,lines:data.lines.map(line=>({account_id:line.account_id,debit:line.debit,credit:line.credit,description:line.description}))});setDirty(false);},[]);
+ useEffect(()=>{if(initialVoucherId)api.get(`${base}/journals/${initialVoucherId}`).then(({data})=>showVoucher(data)).catch(error=>setError(errorText(error)));},[initialVoucherId,showVoucher]);
  function canDiscard(){return !dirty||window.confirm('Discard unsaved voucher changes?');}
  async function action(request,success,accept){
    if(guard.current)return;guard.current=true;setBusy(true);setError('');setMessage('');setWarning('');
@@ -69,7 +70,7 @@ export default function MDAccounting(){
  function prepareStatement(row){if(!canDiscard())return;const payment=Number(row.debit)>0;const amount=payment?String(row.debit):String(row.credit);setVoucher({...newVoucher(),entry_date:row.entry_date,kind:payment?'PAYMENT':'RECEIPT',narration:row.description||'Bank statement transaction',reference:row.reference||row.statement_id,lines:payment?[{...newLine(),debit:amount},{...newLine(),account_id:Number(bankId),credit:amount}]:[{...newLine(),account_id:Number(bankId),debit:amount},{...newLine(),credit:amount}]});setVoucherRecord(null);setDirty(true);setTab('Books');setMessage('Choose the correct counter-account, party and narration, save/post, then match the bank line. Import did not post an entry.');}
 
  return <MainLayout><div className="space-y-5">
-  <header><h1 className="text-2xl font-semibold">MD Bookkeeping & Accounting</h1><p className="mt-1 text-sm text-slate-500">Company books · INR · accrual double-entry · designated MD login only</p></header>
+  <header>{onBack&&<button onClick={()=>{if(canDiscard())onBack();}} disabled={busy} className={`${button} mb-3`}>Back to everyday records</button>}<h1 className="text-2xl font-semibold">Advanced Accounting</h1><p className="mt-1 text-sm text-slate-500">Company books · INR · accrual double-entry · designated MD login only</p></header>
   <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Posted vouchers drive these books. Bank imports and operational ERP records do not automatically become accounting entries. Confirm openings, book every transaction and reconcile the bank before relying on reports. Statutory presentation and tax treatment require accountant review.</p>
   {error&&<p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}{message&&<p role="status" className="rounded-lg bg-teal-50 p-3 text-sm text-teal-800">{message}</p>}{warning&&<p role="status" className="rounded-lg bg-amber-50 p-3 text-sm">{warning}</p>}
   <nav className="flex flex-wrap gap-2">{['Setup','Books','Bank reconciliation','Reports','Audit'].map(value=><button key={value} disabled={busy} onClick={()=>setTab(value)} className={`${button} ${tab===value?'bg-slate-900 text-white':'bg-white'}`}>{value}</button>)}</nav>

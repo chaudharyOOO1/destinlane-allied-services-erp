@@ -84,5 +84,7 @@ jobs:
         run: npm run test:travel-expenses
       - name: MD accounting browser workflow (simulated API)
         run: npm run test:md-accounting
+      - name: Everyday money browser workflow (simulated API)
+        run: npm run test:md-everyday
       - name: Production build
         run: npm run build

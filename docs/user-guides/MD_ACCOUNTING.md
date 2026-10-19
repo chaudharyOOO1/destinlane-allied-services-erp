@@ -1,56 +1,60 @@
-# MD bookkeeping — user guide
+# Company Money — MD user guide
 
-Sign in as **DestinLane Administrator (ADMIN-001)** and open **Finance → MD Books & Accounting**. Other logins do not have this workspace.
+Sign in as **DestinLane Administrator (ADMIN-001)** and open **Finance → Company Money**. This workspace is restricted to the designated MD account.
 
-## 1. Set up the books
+## Everyday recording
 
-1. In **Setup**, choose the books start date and retain April as the financial-year starting month unless your accountant instructs otherwise.
-2. Configure the Company Current Account ledger with the real bank details, or create a distinct bank ledger for each current account. These details do not connect to your bank.
-3. Obtain the complete opening trial balance and bank reconciliation from your accountant. In **Books → New voucher**, choose Opening, enter the start date and the genuine opening debit/credit balances, then save and post.
-4. Confirm reconciled opening balances in Setup with a reason/reference. Use zero opening only if the business actually has zero opening balances. **Do not invent a capital or equity balance just to make an entry balance.**
+1. Choose **Money Out**, **Money In** or **Transfer**.
+2. Enter the date and company bank/cash account. Select the business reason and category, who paid/received, amount, purpose and bank reference or bill number. For transfers, choose the destination company account.
+3. Choose **Review record**. Check the summary; nothing has been saved yet.
+4. Choose **Save draft**. Keep the MDJ reference. The draft is saved but excluded from reports.
+5. Choose **Confirm and record** once the details are correct. The backend posts the balanced entry and reports include it. This records bookkeeping; it does not send a bank payment.
 
-Ordinary vouchers cannot be posted before opening confirmation. Dates/year policy lock once records are posted or statements imported.
+Use the reason that reflects the original transaction:
 
-## 2. Record every payment and receipt
+| Action | Choose | Effect |
+| --- | --- | --- |
+| Pay a new business expense | Money Out → Business expense | Records the expense and reduces bank/cash |
+| Buy equipment | Money Out → Buy equipment or another asset | Increases the selected asset; no immediate expense |
+| Pay a previously accrued supplier/payroll/loan balance | Money Out → Pay a supplier, loan or other amount owed | Reduces the liability; avoids expensing it twice |
+| Receive payment for an existing invoice | Money In → Collect a client balance | Reduces the receivable; avoids recording revenue twice |
+| Receive new income not already accrued | Money In → New business income | Records revenue |
+| Receive borrowing or introduce capital | Money In → Receive a loan or advance / Capital introduced | Increases the chosen liability/equity, not revenue |
+| Move funds between company accounts | Transfer | Moves bank/cash balances; no income or expense |
 
-Use the **Payment / receipt helper** to select the company bank, correct counter-account and full amount, then prepare a balanced draft. Complete the date, party/payee, bank or voucher reference, business purpose and line details.
+Choose the correct category account within each reason. Classification is not inferred from the bank narration. Tax splits, interest/principal splits, payroll accruals and other complex entries belong in **Advanced Accounting → Books**. Existing operational billing/payroll/travel records are not automatically imported into these books. Check for prior recognition before recording their payment.
 
-- Payment: debit the correct expense/asset/payable and credit Bank.
-- Receipt: debit Bank and credit the correct income/receivable/loan/capital account.
-- Transfer between your own cash/bank accounts: use Contra.
-- Tax splits, salary accrual and other adjustments: use multiple lines in Journal.
+**Recent records** lets you review the latest 200 entries. Saved drafts can be adjusted through **Adjust draft in Advanced**. Posted entries are immutable; correct them with a reasoned reversal and replacement in Advanced Accounting. Do not record a transfer twice when it appears on both statements.
 
-Choose **Save voucher draft**, review equal debits/credits, then **Post balanced voucher**. Drafts do not enter reports. Record a bank transfer only once in the books. Paying an existing creditor/payroll liability is a liability settlement, not a second expense.
+## Bank Review
 
-Example service invoice including GST: Dr Receivable ₹1,180; Cr Service Revenue ₹1,000; Cr Output GST ₹180. On collection: Dr Bank ₹1,180; Cr Receivable ₹1,180. This keeps tax out of revenue and avoids counting collections twice.
+1. Choose a bank account and download the CSV template. Bank Review excludes cash accounts.
+2. Use `statement_id,date,reference,description,debit,credit`, stable unique transaction IDs, YYYY-MM-DD dates and plain amounts. Debit means withdrawal; credit means deposit. Exclude opening-balance rows. Limit: 2 MiB / 5000 rows. Identical re-imports are skipped; conflicting IDs are rejected.
+3. Upload the statement. Importing does not change the books.
+4. If the transaction is already recorded, select its existing exact-amount match, checking date, party and reference, then choose **Match**.
+5. If genuinely unbooked, choose **Record**. Bank, date, amount, narration and reference are filled in. Choose the reason/category and party, review, save and confirm. The workspace then attempts to match the new record to the originating bank row.
+6. Enter the actual closing balance, date and statement reference, then **Check bank balance**. Review outstanding payments, deposits in transit and unbooked rows.
 
-The ERP records bookkeeping; it does not send bank payments. Existing Travel/Payroll/Billing records are not silently imported into these books. Link them through accurate voucher references and check for prior accrual before booking payment.
+If recording succeeded but matching failed, the message says so. Return to Bank Review and match the **existing** posted record; do not record it again. Each statement/book line may match once. Removing a match requires a reason. Opening balances cannot be matched to transactions.
 
-## 3. Import and match your bank statement
+“Bank reconciled” requires zero difference, no unbooked imported rows and confirmed openings. You must still check statement completeness and classification. Book balances are not live bank feeds.
 
-1. Open **Bank reconciliation**, select the bank and download the CSV template.
-2. Convert the bank statement to `statement_id,date,reference,description,debit,credit`. Use stable unique transaction IDs, YYYY-MM-DD dates and plain amounts. Debit means bank withdrawal; credit means bank deposit. Do not include the opening-balance row.
-3. Import the CSV (maximum 2 MiB / 5000 rows). Re-importing the same IDs/data safely skips them; changed data under an existing ID is rejected for review.
-4. For an unbooked row, select **Prepare voucher**, choose the appropriate counter-account, complete party/details, save and post.
-5. Return to Bank reconciliation, select the corresponding posted bank line and **Match**. Check reference/date as well as amount. Opening balance lines cannot be matched as transactions.
-6. Enter the actual statement closing balance and date/reference; calculate reconciliation. Review outstanding payments, deposits in transit and unbooked transactions.
+## Reports
 
-RECONCILED requires zero difference, no unbooked imported rows and confirmed openings. You still must ensure the statement is complete and classifications are correct. Imported rows alone do not change P&L or the bank ledger.
+Open **Reports** for bank/cash balances, business income, expenses, profit/loss, breakdowns and balance sheet. Blank From means current financial year; the balance sheet and bank balances remain cumulative through the To date. Choose **Update reports** after changing dates. **Download detailed reports** exports the trial balance, P&L and balance sheet as CSV. Open detailed accounting reports for individual ledgers, bank books and their exports.
 
-## 4. Review records and reports
+Only posted records contribute. Transfers, capital, loans and settlements are not new business income/expense. Reports remain provisional until genuine openings are confirmed.
 
-- **Books → General ledger / bank book:** select an account and view/export every posted transaction with reference, payee, debit, credit and running balance. It uses the Reports date range; blank start means books start.
-- **Reports:** select the P&L start/end or leave start blank for current FY, then refresh. Review trial balance, P&L and the cumulative balance sheet; export financial reports CSV.
-- **Audit:** inspect setup/account changes, imports, matches, posting/reversal, exports, period-lock decisions and reconciliation snapshots.
+## Initial setup and accountant tools
 
-Balance-sheet profit includes current FY and prior unclosed earnings; a period lock does not automatically perform annual closing. GST arithmetic is a helper only: your accountant must confirm the rate, supply treatment and eligibility before making tax entries.
+Open **Advanced Accounting → Setup** to set the books start date, April–March year, company bank details and period locks. Additional accounts can be created here. Bank details do not connect to your bank.
 
-## 5. Correct errors safely
+Obtain the complete opening trial balance and bank reconciliation from your accountant. In **Books → New voucher**, choose Opening, use the books start date and enter the genuine opening debit/credit balances, then save and post. Confirm reconciled openings in Setup with a reason/reference. Genuine zero opening requires an explicit reason. Never invent a capital/equity balance to make entries balance. Ordinary recording is blocked until opening confirmation, but drafts can be prepared.
 
-Draft: reopen, edit and save. Posted voucher: use **Reverse posted voucher** with the correct open date and explanation, then post a corrected voucher. The original remains. A voucher can be reversed once.
+Advanced Accounting retains journals, tax arithmetic, general ledgers, bank reconciliation, full reports, audit history, reversals and period close/reopen. Dates/year policy lock after posting/import; drafts in a period block closing it. A lock does not perform annual profit closing. GST arithmetic does not determine tax treatment or eligibility.
 
-Lock a reconciled period in Setup with a reason. Closing is blocked while drafts exist in that period. Reducing/clearing the lock reopens it and is audited.
+## Recover safely
 
-If a save/response is uncertain, inspect the existing voucher before retrying. If a write succeeded but refresh failed, retain its voucher/reference and reopen; do not create it again. Never share bank numbers, statements or signed documents in support screenshots.
+If saving succeeded but refresh failed, keep the displayed reference and reopen it; do not create it again. If a network timeout leaves the save outcome uncertain, refresh and inspect existing records before retrying. No automatic write retry is performed. Never share bank statements or private documents in support screenshots.
 
-These are management books. Your accountant must review classifications, openings, liabilities/tax, depreciation, statutory schedules and filings before statutory use. A zero trial/balance-sheet difference proves arithmetic balance, not completeness or legal correctness.
+Have your accountant review openings, classifications, tax, accruals, depreciation and statutory schedules before statutory use. A zero balance check establishes arithmetic equality, not completeness or legal correctness.

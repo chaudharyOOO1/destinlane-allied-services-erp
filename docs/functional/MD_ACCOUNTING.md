@@ -14,6 +14,32 @@ Books start date, financial year starting month, opening confirmation/reason, ve
 
 The initial chart supplies bank/cash, receivables, input-tax controls, fixed assets/accumulated depreciation, payables, output-tax controls, TDS, payroll/statutory dues, advances/borrowings, capital/retained earnings, service revenue and expenses. It seeds no money. MD may create additional accounts and configure real bank details. Account codes/names/classification cannot change after use; bank details and active state remain versioned/audited. Bank ledgers must be current assets. An overdraft or other statutory reclassification needs an accountant's appropriate ledger/adjusting voucher.
 
+## Everyday workspace
+
+The `/md-accounting` landing page is **Company Money**: Record Money, Bank Review and Reports. Advanced Accounting retains the original Setup/Books/Bank reconciliation/Reports/Audit tools. The sidebar and command palette use the same name. Access remains bound to the designated MD identity.
+
+Business-action APIs under the same base:
+
+- `GET /transactions/options`: active bank/cash choices and eligible accounts grouped by business reason. Cash (code 1000) is valid for recording/transfers; only `is_bank` accounts appear in Bank Review.
+- `POST /transactions/preview`: validates date, accounts, reason and positive two-decimal amount; returns a readable summary and generated journal without saving.
+- `POST /transactions`: validates again under the existing setup-row lock, builds exactly two balanced lines and calls existing draft creation. It never posts implicitly. Input rejects extra fields, including caller-supplied lines/status.
+- `GET /transactions/dashboard`: existing exact financial reports plus cumulative bank/cash balances from posted trial balances, including inactive accounts with history. Custom P&L From dates do not truncate those balances.
+
+| Action | Counter-account section | Generated entry |
+| --- | --- | --- |
+| Money Out / Expense | EXPENSE | Dr expense, Cr bank/cash |
+| Money Out / Asset | CURRENT_ASSET or NON_CURRENT_ASSET, excluding bank/cash | Dr asset, Cr bank/cash |
+| Money Out / Settlement | CURRENT_LIABILITY or NON_CURRENT_LIABILITY | Dr liability, Cr bank/cash |
+| Money In / Collection | CURRENT_ASSET, excluding bank/cash | Dr bank/cash, Cr receivable/control |
+| Money In / Income | REVENUE | Dr bank/cash, Cr revenue |
+| Money In / Borrowing | CURRENT_LIABILITY or NON_CURRENT_LIABILITY | Dr bank/cash, Cr liability |
+| Money In / Capital | EQUITY excluding retained earnings code 3100 | Dr bank/cash, Cr capital |
+| Transfer | Different bank/cash account | Dr destination, Cr source; Contra |
+
+Business reason constrains section but does not infer legal classification, tax eligibility, or whether an operational balance was already recognised. Party is required except transfers. Both accounts must be active and different. Future/before-start/closed-period dates fail. Confirmation calls the existing versioned posting endpoint with all opening/period/balance controls. Tax/multiple-account splits use Advanced Accounting; the simple form must not guess a split.
+
+The UI invalidates preview on any edit and retains acknowledged draft/posted ID and version even if follow-up reads fail. A bank-row recording posts first, then separately requests the existing exact match. Failed matching must explicitly preserve recorded success and direct the user to match the existing record. An uncertain mutation response still requires inspection before retrying; this change adds no idempotent write retry. Bank imports/classification remain deliberate.
+
 ## Bookkeeping
 
 Voucher types: Opening, Payment, Receipt, Contra, Journal; Reversal is server-generated. Fields include date, business narration, party/payee, bank/document reference and 2–200 account lines with detail. Each line has one positive debit or credit, to at most two decimal places. All amounts use Decimal/Numeric, never float calculations in the accounting engine. UI totals are guidance only.
@@ -60,6 +86,6 @@ These books do not silently reuse the old dashboard's gross invoice/payroll tota
 
 ## Evidence and source map
 
-Models: `models/md_accounting.py`; input contracts: `schemas/md_accounting.py`; calculations: `services/md_accounting.py`; scoped routes: `api/v1/endpoints/md_accounting.py`; identity/permission gates: config, `api/permissions.py`, `api/deps.py`; UI: `frontend/src/pages/MDAccounting.jsx`.
+Models: `models/md_accounting.py`; input contracts: `schemas/md_accounting.py`; calculations: `services/md_accounting.py`; scoped routes: `api/v1/endpoints/md_accounting.py`; identity/permission gates: config, `api/permissions.py`, `api/deps.py`; UI: `frontend/src/pages/MDWorkspace.jsx`, `components/accounting/*` and Advanced `pages/MDAccounting.jsx`. Business inputs/builders/routes: `schemas/md_transactions.py`, `services/md_transactions.py`, `api/v1/endpoints/md_transactions.py`.
 
 Tests cover exact known books, GST separation, current/prior earnings, draft exclusion, stale versions, opening/period rules, reversal, CSV re-imports, matching/reconciliation and other-role/other-owner denial. PostgreSQL tests additionally attempt direct modification/unbalanced posting and check browser-role denial. Browser tests use a simulated API to exercise the operator journey/mobile layout; they are not live bank or statutory acceptance.

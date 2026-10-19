@@ -142,7 +142,7 @@ def ledger(db, account_id, start, end):
         if entry.entry_date<start:continue
         running+=line.debit-line.credit
         result.append({'line_id':line.id,'entry_id':entry.id,'voucher':f'MDJ{entry.id:06d}','date':entry.entry_date,
-                       'party':entry.party,'reference':entry.reference,'narration':entry.narration,'description':line.description,
+                       'kind':entry.kind,'party':entry.party,'reference':entry.reference,'narration':entry.narration,'description':line.description,
                        'debit':money(line.debit),'credit':money(line.credit),'balance':money(running)})
     return {'account_id':account.id,'code':account.code,'name':account.name,'from_date':start,'to_date':end,
             'opening_balance':money(opening),'closing_balance':money(running),'balance_convention':'Debit positive / credit negative','entries':result}

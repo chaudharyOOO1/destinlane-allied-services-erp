@@ -29,6 +29,8 @@ test('MD opening, payment bookkeeping, bank match, financial reports and mobile 
    else if(path==='/users/1/permissions')data={permissions:Object.fromEntries(['view','create','edit','approve','export'].map(action=>[`md_accounting.${action}`,true])),module_roles:{md_accounting:['OWNER']}};
    else if(path==='/erp/company/profile')data={display_name:'Test Company'};
    else if(path.endsWith('/setup')){if(request.method()==='PUT'){const body=JSON.parse(request.postData());setup={...setup,...body,opening_confirmed:body.confirm_opening,version:setup.version+1};}data=setup;}
+   else if(path.endsWith('/transactions/options'))data={banks:accounts.filter(a=>a.is_bank),categories:{MONEY_OUT:[],MONEY_IN:[]}};
+   else if(path.endsWith('/transactions/dashboard'))data={...reports(),bank_balances:[{id:1,name:'Current account',amount:ledger(1).closing_balance}],bank_cash_total:ledger(1).closing_balance};
    else if(path.endsWith('/accounts'))data=accounts;
    else if(path.endsWith('/journals')&&request.method()==='POST'){const body=JSON.parse(request.postData());data=journalDetails(body,journals.length+1);journals.push(data);}
    else if(path.endsWith('/journals'))data=[...journals].reverse();
@@ -47,7 +49,7 @@ test('MD opening, payment bookkeeping, bank match, financial reports and mobile 
   async function click(text){await page.waitForFunction(text=>[...document.querySelectorAll('button')].some(button=>button.textContent.trim()===text&&!button.disabled),{},text);await page.evaluate(text=>[...document.querySelectorAll('button')].find(button=>button.textContent.trim()===text).click(),text);}
   async function text(value){await page.waitForFunction(value=>document.body.innerText.includes(value),{},value);}
   async function type(label,value){await page.waitForSelector(`[aria-label="${label}"]:enabled`);await page.type(`[aria-label="${label}"]`,value);}
-  await page.goto(`${origin}/md-accounting`);await text('Books and opening balances');
+  await page.goto(`${origin}/md-accounting`);await text('Company Money');await click('Advanced Accounting');await text('Books and opening balances');
   await click('Books');await click('New voucher');await page.select('[aria-label="Voucher type"]','OPENING');
   await type('Narration / business purpose','Opening bank and capital');await page.select('[aria-label="Voucher account 1"]','1');await page.select('[aria-label="Voucher account 2"]','3');
   await page.$eval('[aria-label="Voucher debit 1"]',el=>el.select());await type('Voucher debit 1','1000');await page.$eval('[aria-label="Voucher credit 2"]',el=>el.select());await type('Voucher credit 2','1000');

@@ -21,3 +21,9 @@ Status: implemented locally for Staff Master, SAVE-001.
 A successful mutation response is authoritative for the issued ID and version. Apply that response immediately and clear temporary passwords. Follow-up reads can enrich the record and refresh lists; failures produce an explicit refresh warning without representing the write as rejected. Do not automatically retry mutations.
 
 An HTTP timeout or lost mutation response remains an uncertain outcome: verify the record before retrying creation. This change does not provide general request idempotency or distributed transactions across Supabase Auth and PostgreSQL.
+
+## ADR-004 — Business actions over the existing accounting engine
+
+Status: approved by the user, 19 October 2026; implemented in Company Money.
+
+Daily recording asks for business reason, category, party, amount and reference. The server generates balanced drafts; the existing posting engine and ledger remain authoritative. Advanced Accounting retains accountant controls and multi-line tax/accrual work. This reduces operator effort without duplicating monetary truth or interpreting every bank deposit as income. Preview does not save, draft does not enter reports, and confirmation is explicit. Classification and genuine opening figures still require accountant review.
