@@ -16,6 +16,22 @@ from app.services.company import company_document_profile
 router = APIRouter()
 
 
+@router.get("/billing/invoices")
+def list_billing_invoices(db: Session = Depends(get_db), current_user=Depends(require_accounts_or_admin)):
+    """Billing-only directory; finance ledgers are deliberately outside this response.
+
+    The request permission mapper enforces billing.view separately from finance.view.
+    Keep these invoice fields explicit so new account-ledger data cannot leak through.
+    """
+    rows = db.execute(text("""select i.id,i.client_id,c.company_name as client_name,
+      i.invoice_number,i.billing_month,i.issue_date,i.due_date,i.subtotal,i.tax_rate,
+      i.cgst,i.sgst,i.igst,i.tax_amount,i.total_amount,i.status,i.clearance_status,
+      i.notes,i.created_at,i.updated_at
+      from invoices i join clients c on c.id=i.client_id
+      order by i.issue_date desc,i.id desc""")).mappings().all()
+    return [dict(row) for row in rows]
+
+
 def _month(value: str) -> date:
     try:
         return date.fromisoformat(f"{value}-01")

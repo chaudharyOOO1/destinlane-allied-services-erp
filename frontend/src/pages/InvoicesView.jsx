@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import StatCard from '../components/StatCard';
 import FilterBar from '../components/FilterBar';
@@ -17,10 +17,14 @@ export default function InvoicesView() {
   const {user}=useAuth();
   const {can}=useAccess();
   const role=user.role;
+  const canCreate = can('billing.create');
+  const canLoadClients = canCreate && can('clients.view');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [lookupWarning, setLookupWarning] = useState('');
 
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);
-  const [sites, setSites] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [monthFilter, setMonthFilter] = useState('ALL');
@@ -29,39 +33,28 @@ export default function InvoicesView() {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [printingInvoice, setPrintingInvoice] = useState(null);
 
-  useEffect(() => {
-    let ignore = false;
-    async function loadData() {
-      try {
-        const [iRes, cRes, sRes] = await Promise.allSettled([
-          api.get('/invoices/'),
-          api.get('/clients/'),
-          api.get('/sites/'),
-        ]);
-        if (!ignore) {
-          if (iRes.status === 'fulfilled' && iRes.value?.data?.length) setInvoices(iRes.value.data);
-          if (cRes.status === 'fulfilled' && cRes.value?.data?.length) setClients(cRes.value.data);
-          if (sRes.status === 'fulfilled' && sRes.value?.data?.length) setSites(sRes.value.data);
-        }
-      } catch {
-        // fallback
-      }
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setLoadError('');
+    setLookupWarning('');
+    const results = await Promise.allSettled([
+      api.get('/erp/billing/invoices'),
+      ...(canLoadClients ? [api.get('/erp/clients')] : []),
+    ]);
+    if (results[0].status === 'fulfilled') setInvoices(results[0].value.data || []);
+    else setLoadError('Invoices could not be loaded. Retry to show the current records.');
+    if (results[1]?.status === 'fulfilled') setClients(results[1].value.data || []);
+    if (canCreate && !canLoadClients) {
+      setLookupWarning('Client viewing permission is required to select a client for invoice generation.');
+    } else if (canCreate && results.slice(1).some(result => result.status === 'rejected')) {
+      setLookupWarning('Client choices could not load. Refresh before generating an invoice.');
     }
-    loadData();
-    return () => {
-      ignore = true;
-    };
-  }, []);
+    setLoading(false);
+  }, [canCreate, canLoadClients]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  function handleSaveInvoice(newInv) {
-    setInvoices([newInv, ...invoices]);
-  }
-
-  function handleStatusToggle(invId, newStatus, e) {
-    e?.stopPropagation();
-    setInvoices(
-      invoices.map((inv) => (inv.id === invId ? { ...inv, status: newStatus } : inv))
-    );
+  function handleSaveInvoices(saved) {
+    setInvoices(current => [...saved, ...current.filter(invoice => !saved.some(row => row.id === invoice.id))]);
   }
 
   const enrichedInvoices = invoices.map((inv) => {
@@ -76,18 +69,18 @@ export default function InvoicesView() {
     return (
       <MainLayout>
         <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6 space-y-4">
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-700 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
             <ShieldAlert className="w-8 h-8" />
           </div>
-          <h2 className="text-xl font-black text-white">Billing Records Restricted</h2>
-          <p className="text-xs text-slate-400 max-w-md">
-            Corporate invoicing, client billing, and GST statements are restricted to Administrators and Corporate Clients. For wage payment schedules and overtime rates, please refer to your Guard Console.
+          <h2 className="text-xl font-semibold text-slate-900">Billing Records Restricted</h2>
+          <p className="text-xs text-slate-500 max-w-md">
+            Corporate invoicing, client billing, and GST statements are restricted to Administrators and Corporate Clients. For wage payment schedules and overtime rates, please refer to your employee dashboard.
           </p>
           <button
             onClick={() => window.location.href = '/dashboard'}
-            className="px-4 py-2 bg-slate-900 border border-slate-700 hover:border-emerald-500 text-xs font-bold text-slate-200 rounded-xl transition-all"
+            className="px-4 py-2 bg-white border border-slate-200 hover:border-emerald-500 text-xs font-bold text-slate-700 rounded-xl transition-all"
           >
-            Return to Officer Terminal
+            Return to dashboard
           </button>
         </div>
       </MainLayout>
@@ -112,14 +105,15 @@ export default function InvoicesView() {
     return matchesSearch && matchesStatus && matchesMonth;
   });
 
-  const totalRevenue = clientScopedInvoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
+  const isPaid = invoice => invoice.clearance_status === 'PAID' || invoice.status === 'PAID';
+  const totalRevenue = clientScopedInvoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
   const paidRevenue = clientScopedInvoices
-    .filter((inv) => inv.status === 'PAID')
-    .reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
+    .filter(isPaid)
+    .reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
   const pendingDraftRevenue = clientScopedInvoices
-    .filter((inv) => inv.status === 'DRAFT' || inv.status === 'SENT')
-    .reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
-  const totalTaxCollected = clientScopedInvoices.reduce((sum, inv) => sum + (inv.tax_amount || 0), 0);
+    .filter((inv) => !isPaid(inv) && inv.status !== 'CANCELLED')
+    .reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
+  const totalTaxCollected = clientScopedInvoices.reduce((sum, inv) => sum + Number(inv.tax_amount || 0), 0);
 
   const columns = [
     {
@@ -128,8 +122,8 @@ export default function InvoicesView() {
       accessorKey: 'invoice_number',
       render: (row) => (
         <div>
-          <span className="font-mono text-xs font-bold text-cyan-400">{row.invoice_number}</span>
-          <p className="text-[10px] text-slate-400 font-mono">Issued: {formatDate(row.issue_date)}</p>
+          <span className="font-mono text-xs font-bold text-teal-700">{row.invoice_number}</span>
+          <p className="text-[10px] text-slate-500 font-mono">Issued: {formatDate(row.issue_date)}</p>
         </div>
       ),
     },
@@ -139,8 +133,8 @@ export default function InvoicesView() {
       accessorKey: 'client_name',
       render: (row) => (
         <div>
-          <p className="font-bold text-white text-xs">{row.client_name}</p>
-          <span className="text-[10px] text-slate-400 font-mono">Month: {row.billing_month}</span>
+          <p className="font-bold text-slate-900 text-xs">{row.client_name}</p>
+          <span className="text-[10px] text-slate-500 font-mono">Month: {row.billing_month}</span>
         </div>
       ),
     },
@@ -148,27 +142,32 @@ export default function InvoicesView() {
       id: 'subtotal',
       header: 'Subtotal',
       accessorKey: 'subtotal',
-      render: (row) => <span className="font-mono text-xs text-slate-300">{formatCurrency(row.subtotal)}</span>,
+      render: (row) => <span className="font-mono text-xs text-slate-600">{formatCurrency(row.subtotal)}</span>,
     },
     {
       id: 'tax',
-      header: 'GST (18%)',
+      header: 'GST',
       accessorKey: 'tax_amount',
-      render: (row) => <span className="font-mono text-xs text-amber-400">+{formatCurrency(row.tax_amount)}</span>,
+      render: (row) => <span className="font-mono text-xs text-amber-700">+{formatCurrency(row.tax_amount)}</span>,
     },
     {
       id: 'total',
       header: 'Total Amount',
       accessorKey: 'total_amount',
       render: (row) => (
-        <span className="font-mono text-xs font-bold text-emerald-400">{formatCurrency(row.total_amount)}</span>
+        <span className="font-mono text-xs font-bold text-emerald-700">{formatCurrency(row.total_amount)}</span>
       ),
     },
     {
       id: 'status',
-      header: 'Payment Status',
+      header: 'Invoice status',
       accessorKey: 'status',
       render: (row) => <StatusBadge status={row.status} />,
+    },
+    {
+      id: 'clearance',
+      header: 'Clearance',
+      render: (row) => <StatusBadge status={row.clearance_status || (row.status === 'PAID' ? 'PAID' : 'PENDING')} />,
     },
     {
       id: 'actions',
@@ -177,19 +176,12 @@ export default function InvoicesView() {
         <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => setPrintingInvoice(row)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-500 hover:text-teal-700 hover:bg-slate-100 transition-colors"
             title="Print / View PDF"
           >
             <Printer className="w-3.5 h-3.5" />
           </button>
-          {can('billing.edit') && row.status !== 'PAID' && (
-            <button
-              onClick={(e) => handleStatusToggle(row.id, 'PAID', e)}
-              className="px-2 py-1 rounded text-[10px] font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 hover:bg-emerald-900/50"
-            >
-              Mark Paid
-            </button>
-          )}
+
         </div>
       ),
     },
@@ -199,19 +191,20 @@ export default function InvoicesView() {
     <MainLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            {role === 'CLIENT' ? 'Corporate Invoices & Statements' : 'Automated Billing & Invoices Studio'}
+          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 tracking-tight">
+            {role === 'CLIENT' ? 'Client Invoices' : 'Billing & Invoices'}
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             {role === 'CLIENT'
-              ? 'Monthly 18% GST tax invoices and payment receipts for your facility security service agreement.'
-              : 'Automated monthly invoice calculation based on verified guard shifts, 18% GST, and printable PDF receipts.'}
+              ? 'Review recorded invoices and download printable copies.'
+              : 'Generate invoices from attendance and contract rates, then review their recorded status.'}
           </p>
         </div>
-        {can('billing.create') && (
+        {canCreate && (
           <button
+            disabled={loading || Boolean(loadError) || Boolean(lookupWarning)}
             onClick={() => setGenerateModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-950 bg-cyan-400 hover:bg-cyan-300 transition-all shadow-lg shadow-cyan-500/20 self-start sm:self-auto"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 transition-all disabled:opacity-50 self-start sm:self-auto"
           >
             <Plus className="w-4 h-4" />
             <span>Generate Client Invoice</span>
@@ -219,41 +212,44 @@ export default function InvoicesView() {
         )}
       </div>
 
+      {loadError && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{loadError} <button onClick={loadData} className="ml-2 underline" disabled={loading}>Retry</button></div>}
+      {lookupWarning && <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{lookupWarning} <button onClick={loadData} className="underline" disabled={loading}>Refresh</button></p>}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <StatCard
-          label={role === 'CLIENT' ? 'Billed Statement Total' : 'Total Invoiced Volume'}
-          value={formatCurrency(totalRevenue)}
+          label="Total invoices"
+          value={loading || loadError ? '—' : formatCurrency(totalRevenue)}
           icon={DollarSign}
-          trend={role === 'CLIENT' ? 'Verified' : '+18% YoY'}
+
           glow={role === 'CLIENT' ? 'border-purple-500/30' : 'border-cyan-500/30'}
-          sparkline={[100, 120, 140, 150, 170, 190, 210]}
+
         />
         <StatCard
-          label="Collected / Paid"
-          value={formatCurrency(paidRevenue)}
+          label="Invoices marked paid"
+          value={loading || loadError ? '—' : formatCurrency(paidRevenue)}
           icon={CheckCircle2}
-          trend="Settled Funds"
+
           glow="border-emerald-500/30"
-          sparkline={[50, 60, 70, 75, 80, 90, 95]}
+
         />
         <StatCard
-          label="Pending / Draft"
-          value={formatCurrency(pendingDraftRevenue)}
+          label="Unpaid invoices"
+          value={loading || loadError ? '—' : formatCurrency(pendingDraftRevenue)}
           icon={Clock}
-          trend="Awaiting Client"
+
           glow="border-amber-500/30"
-          sparkline={[20, 25, 30, 20, 35, 40, 30]}
+
         />
         <StatCard
-          label="GST Tax Collected"
-          value={formatCurrency(totalTaxCollected)}
+          label="GST on invoices"
+          value={loading || loadError ? '—' : formatCurrency(totalTaxCollected)}
           icon={ReceiptText}
-          trend="18% Standard"
+
           glow="border-purple-500/30"
-          sparkline={[18, 22, 25, 28, 30, 35, 38]}
+
         />
       </div>
 
+      <p className="text-xs text-slate-500">Invoice totals reflect saved invoice statuses. Bank receipts and the general ledger are reviewed separately in Company Money.</p>
       <FilterBar
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
@@ -263,11 +259,12 @@ export default function InvoicesView() {
             name: 'status',
             value: statusFilter,
             options: [
-              { value: 'ALL', label: 'All Billing Statuses' },
+              { value: 'ALL', label: 'All Invoice Statuses' },
               { value: 'DRAFT', label: 'Draft' },
               { value: 'SENT', label: 'Sent / Issued' },
               { value: 'PAID', label: 'Paid & Settled' },
               { value: 'OVERDUE', label: 'Overdue' },
+              { value: 'CANCELLED', label: 'Cancelled' },
             ],
           },
           {
@@ -275,9 +272,7 @@ export default function InvoicesView() {
             value: monthFilter,
             options: [
               { value: 'ALL', label: 'All Billing Months' },
-              { value: '2026-08', label: 'August 2026' },
-              { value: '2026-07', label: 'July 2026' },
-              { value: '2026-06', label: 'June 2026' },
+              ...[...new Set(invoices.map(invoice => invoice.billing_month).filter(Boolean))].sort().reverse().map(month => ({ value: month, label: month })),
             ],
           },
         ]}
@@ -291,14 +286,14 @@ export default function InvoicesView() {
         columns={columns}
         data={filteredInvoices}
         onRowClick={(row) => setSelectedInvoice(row)}
-        emptyTitle="No Client Invoices Found"
-        emptyMessage="No billing records matched the selected query parameters."
+        emptyTitle={loading ? "Loading invoices…" : loadError ? "Invoices unavailable" : "No invoices found"}
+        emptyMessage={loading ? "Reading saved invoice records." : loadError ? "Retry loading the records above." : "No invoices match the selected filters."}
       />
 
       <DetailDrawer
         isOpen={!!selectedInvoice}
         onClose={() => setSelectedInvoice(null)}
-        title={selectedInvoice?.client_name || 'Invoice Dossier'}
+        title={selectedInvoice?.client_name || 'Invoice details'}
         subtitle={`Invoice #: ${selectedInvoice?.invoice_number} | Month: ${selectedInvoice?.billing_month}`}
         data={selectedInvoice}
         type="TAX INVOICE"
@@ -308,7 +303,7 @@ export default function InvoicesView() {
               setPrintingInvoice(selectedInvoice);
               setSelectedInvoice(null);
             }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-950 bg-cyan-400 hover:bg-cyan-300 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 transition-all"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Printable PDF</span>
@@ -319,9 +314,8 @@ export default function InvoicesView() {
       <GenerateInvoiceModal
         isOpen={isGenerateModalOpen}
         onClose={() => setGenerateModalOpen(false)}
-        onSave={handleSaveInvoice}
+        onSave={handleSaveInvoices}
         clients={clients}
-        sites={sites}
       />
 
       <InvoicePrintModal

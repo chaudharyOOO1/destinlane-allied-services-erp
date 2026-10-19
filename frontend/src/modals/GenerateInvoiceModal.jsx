@@ -1,198 +1,77 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Modal from '../components/Modal';
+import api from '../api/axios';
 import { formatCurrency } from '../utils/helpers';
 
-export default function GenerateInvoiceModal({
-  isOpen,
-  onClose,
-  onSave,
-  clients = [],
-  sites = [],
-}) {
-  const currentMonth = new Date().toISOString().slice(0, 7); // e.g. "2026-08"
-  const [clientId, setClientId] = useState(() => clients[0]?.id ?? 1);
-  const [billingMonth, setBillingMonth] = useState(currentMonth);
-  const [taxRate, setTaxRate] = useState(18.0);
-  const [ratePerShift, setRatePerShift] = useState(650.0);
-  const [overtimeRate, setOvertimeRate] = useState(100.0);
-  const [notes, setNotes] = useState('');
-  const [loading, setLoading] = useState(false);
+const currentMonth = () => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit',
+}).format(new Date()).slice(0, 7);
+const input = 'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900';
 
-  // Selected client sites
-  const clientSites = sites.filter((s) => s.client_id === Number(clientId));
-  const estimatedShifts = clientSites.reduce(
-    (sum, s) => sum + ((s.shift_requirements?.day_shift_guards || 1) + (s.shift_requirements?.night_shift_guards || 1)) * 30,
-    0
-  );
-  const estimatedSubtotal = estimatedShifts * Number(ratePerShift);
-  const estimatedTax = (estimatedSubtotal * Number(taxRate)) / 100;
-  const estimatedTotal = estimatedSubtotal + estimatedTax;
+export default function GenerateInvoiceModal({ isOpen, onClose, onSave, clients = [] }) {
+  const [clientId, setClientId] = useState('');
+  const [month, setMonth] = useState(currentMonth);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState(null);
+  const active = useRef(false);
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    setLoading(true);
-
-    setTimeout(() => {
-      const selectedClient = clients.find((c) => c.id === Number(clientId));
-      const todayStr = new Date().toISOString().split('T')[0];
-      const invNumber = `INV-${billingMonth.replace('-', '')}-${String(clientId).padStart(3, '0')}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-
-      onSave({
-        id: Date.now(),
-        client_id: Number(clientId),
-        client_name: selectedClient?.company_name || 'Client',
-        invoice_number: invNumber,
-        billing_month: billingMonth,
-        issue_date: todayStr,
-        due_date: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
-        subtotal: estimatedSubtotal,
-        tax_rate: Number(taxRate),
-        tax_amount: estimatedTax,
-        total_amount: estimatedTotal,
-        status: 'DRAFT',
-        notes: notes || `Automated billing calculation for ${billingMonth}. Total estimated shifts: ${estimatedShifts}.`,
-        breakdown_by_site: clientSites.map((s) => ({
-          site_id: s.id,
-          site_name: s.site_name,
-          total_shifts: Math.round(estimatedShifts / Math.max(clientSites.length, 1)),
-          present_shifts: Math.round(estimatedShifts / Math.max(clientSites.length, 1)),
-          billable_amount: Math.round(estimatedSubtotal / Math.max(clientSites.length, 1)),
-        })),
-        created_at: new Date().toISOString(),
-      });
-
-      setLoading(false);
-      onClose();
-    }, 400);
+  async function generate(event) {
+    event.preventDefault();
+    if (active.current || result) return;
+    active.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const { data } = await api.post('/erp/billing/generate', { month, client_id: Number(clientId) });
+      // Acknowledge committed invoices before any directory read or navigation.
+      setResult(data);
+      onSave(data.invoices || []);
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : err.response
+        ? 'Invoice generation failed. Check the selected client, rates and attendance.'
+        : 'The response was lost. Close and refresh the invoice list before trying again; the server may have saved invoices.');
+    } finally {
+      active.current = false;
+      setBusy(false);
+    }
   }
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      maxWidth="max-w-2xl"
-      title="Automated Billing Engine & Invoice Generator"
-      subtitle="Compute billable shifts, overtime pay, 18% GST, and itemized client breakdown"
-    >
-      <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-slate-300 font-semibold mb-1">Target Client Account *</label>
-            <select
-              required
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              className="w-full cyber-input bg-slate-900"
-            >
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.company_name} ({c.gst_number || 'No GST'})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-slate-300 font-semibold mb-1">Billing Month (YYYY-MM) *</label>
-            <input
-              type="month"
-              required
-              value={billingMonth}
-              onChange={(e) => setBillingMonth(e.target.value)}
-              className="w-full cyber-input"
-            />
-          </div>
-
-          <div>
-            <label className="block text-slate-300 font-semibold mb-1">Shift Rate Override (₹ / Shift)</label>
-            <input
-              type="number"
-              min="100"
-              step="25"
-              value={ratePerShift}
-              onChange={(e) => setRatePerShift(e.target.value)}
-              className="w-full cyber-input"
-            />
-          </div>
-
-          <div>
-            <label className="block text-slate-300 font-semibold mb-1">Overtime Rate (₹ / Hour)</label>
-            <input
-              type="number"
-              min="0"
-              step="10"
-              value={overtimeRate}
-              onChange={(e) => setOvertimeRate(e.target.value)}
-              className="w-full cyber-input"
-            />
-          </div>
-
-          <div>
-            <label className="block text-slate-300 font-semibold mb-1">Applicable GST Tax Rate (%)</label>
-            <input
-              type="number"
-              min="0"
-              max="28"
-              step="0.5"
-              value={taxRate}
-              onChange={(e) => setTaxRate(e.target.value)}
-              className="w-full cyber-input font-mono"
-            />
-          </div>
-        </div>
-
-        {/* Live Calculation Simulation Card */}
-        <div className="p-4 rounded-xl cyber-card border border-cyan-500/20 bg-cyan-950/20 space-y-2">
-          <div className="flex items-center justify-between text-slate-300">
-            <span>Linked Client Facilities:</span>
-            <span className="font-bold text-white">{clientSites.length} Active Sites</span>
-          </div>
-          <div className="flex items-center justify-between text-slate-300">
-            <span>Estimated Monthly Shift Count:</span>
-            <span className="font-mono font-bold text-cyan-400">~{estimatedShifts} Shifts</span>
-          </div>
-          <div className="flex items-center justify-between text-slate-300">
-            <span>Subtotal (Shifts & Deployments):</span>
-            <span className="font-mono text-white">{formatCurrency(estimatedSubtotal)}</span>
-          </div>
-          <div className="flex items-center justify-between text-slate-300">
-            <span>Goods & Services Tax ({taxRate}% GST):</span>
-            <span className="font-mono text-amber-400">+{formatCurrency(estimatedTax)}</span>
-          </div>
-          <div className="pt-2 border-t border-slate-800 flex items-center justify-between font-bold text-sm">
-            <span className="text-white">Estimated Invoice Total:</span>
-            <span className="font-mono text-emerald-400 text-base">{formatCurrency(estimatedTotal)}</span>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-slate-300 font-semibold mb-1">Invoice Notes / Memo</label>
-          <input
-            type="text"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="e.g. Automated calculation based on daily guard rosters and verified attendance"
-            className="w-full cyber-input"
-          />
-        </div>
-
-        <div className="pt-4 border-t border-slate-800 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition-all shadow-lg shadow-cyan-500/20 disabled:opacity-50"
-          >
-            {loading ? 'Generating...' : 'Generate & Issue Invoice'}
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
+  function close() {
+    if (active.current) return;
+    setError('');
+    setResult(null);
+    onClose();
+  }
+  return <Modal isOpen={isOpen} onClose={close} title="Generate invoice drafts"
+    subtitle="Use verified attendance and the effective site rate cards.">
+    {result ? <div className="space-y-4 text-sm text-slate-700">
+      <p role="status" className="rounded-lg bg-emerald-50 p-3 text-emerald-800">
+        {result.invoices_created > 0 ? `${result.invoices_created} invoice draft(s) saved for ${result.month}.` : 'No new invoice drafts were created.'}
+      </p>
+      {(result.invoices || []).map(invoice => <div key={invoice.id} className="flex flex-wrap justify-between gap-2 rounded-lg border border-slate-200 p-3">
+        <span>{invoice.invoice_number}</span><strong>{formatCurrency(invoice.total_amount)}</strong>
+      </div>)}
+      {!result.invoices_created && <p>Invoices may already exist, or completed verified attendance may have no billable effective rate. Review attendance, contracts and rates before generating again.</p>}
+      <p className="text-xs text-slate-500">Saved drafts are not payment receipts or posted bookkeeping entries. Review the invoice and tax treatment before issuing it.</p>
+      <button onClick={close} className="rounded-lg bg-slate-900 px-4 py-2 text-white">Done</button>
+    </div> : <form onSubmit={generate} className="space-y-5 text-sm text-slate-700">
+      <fieldset disabled={busy} className="grid gap-4 sm:grid-cols-2">
+        <label>Client<select required aria-label="Invoice client" value={clientId} onChange={event => setClientId(event.target.value)} className={input}>
+          <option value="">Select client</option>
+          {clients.map(client => <option key={client.id} value={client.id}>{client.company_name}</option>)}
+        </select></label>
+        <label>Billing month<input required aria-label="Invoice billing month" type="month" value={month} onChange={event => setMonth(event.target.value)} className={input}/></label>
+      </fieldset>
+      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs leading-5">
+        <p>Amounts are calculated on the server from completed, verified attendance and the matching site rates. Existing month/site invoices are skipped.</p>
+        <p>The current billing policy applies 18% GST and a regional tax split. Review these draft taxes with Accounts before issuing an invoice.</p>
+      </div>
+      {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-rose-700">{error}</p>}
+      <div className="flex justify-end gap-3">
+        <button type="button" onClick={close} disabled={busy} className="rounded-lg border border-slate-200 px-4 py-2">Cancel</button>
+        <button disabled={busy || !clientId || !clients.length} className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white disabled:opacity-50">{busy ? 'Generating…' : 'Generate drafts'}</button>
+      </div>
+    </form>}
+  </Modal>;
 }

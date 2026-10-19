@@ -1,0 +1,46 @@
+/* Brand images retain their proportions in both the workspace and printed records. */
+.company-logo-image { object-fit: contain; }
+.company-wordmark-initials { background: #0f172a; color: #d3b67a; border-color: #0f172a; }
+.invoice-print-sheet { color: #334155; background: #fff; }
+.invoice-print-sheet .company-wordmark-name { color: #0f172a; }
+.invoice-print-sheet .company-wordmark-subtitle { color: #64748b; }
+
+@media print {
+  body:has(.invoice-print-sheet) *:not(:has(.invoice-print-sheet)):not(.invoice-print-sheet):not(.invoice-print-sheet *) { display: none !important; }
+  body:has(.invoice-print-sheet) .invoice-print-sheet,
+  body:has(.invoice-print-sheet) .invoice-print-sheet * { visibility: visible !important; }
+  body:has(.invoice-print-sheet) .invoice-print-sheet {
+    position: static !important;
+    inset: auto;
+    width: 100%;
+    padding: 12mm;
+    color: #000;
+    background: #fff;
+    font-size: 10pt;
+  }
+  body:has(.invoice-print-sheet) .invoice-print-sheet .print\:hidden { display: none !important; }
+  body:has(.invoice-print-sheet) *:has(.invoice-print-sheet) {
+    display: block !important;
+    position: static !important;
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+    transform: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    animation: none !important;
+    opacity: 1 !important;
+    contain: none !important;
+    will-change: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  .invoice-print-sheet table { break-inside: avoid; }
+  .invoice-print-sheet * { color: #000 !important; }
+  .invoice-print-sheet .company-wordmark-initials { border-color: #0f172a; color: #0f172a; background: #fff; }
+}

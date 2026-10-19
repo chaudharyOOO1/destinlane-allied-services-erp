@@ -200,6 +200,7 @@ function Field({
       </span>
       {choices ? (
         <select
+          name={name}
           required={required}
           className={inputClass}
           value={value ?? ""}
@@ -214,18 +215,21 @@ function Field({
         </select>
       ) : checkbox ? (
         <input
+          name={name}
           type="checkbox"
           checked={Boolean(value)}
           onChange={(e) => onChange(e.target.checked)}
         />
       ) : name.includes("address") || name === "notes" ? (
         <textarea
+          name={name}
           className={inputClass}
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
         />
       ) : (
         <input
+          name={name}
           required={required}
           className={inputClass}
           type={date ? "date" : "text"}
@@ -259,6 +263,7 @@ export default function Employees() {
   const [rules, setRules] = useState([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [warning, setWarning] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -270,6 +275,7 @@ export default function Employees() {
   });
   const [intimation, setIntimation] = useState({});
   const [record, setRecord] = useState(null);
+  const [recordNeedsRefresh, setRecordNeedsRefresh] = useState(false);
   const [form, setForm] = useState({});
   const [dirty, setDirty] = useState(false);
   const [documents, setDocuments] = useState([]);
@@ -324,6 +330,7 @@ export default function Employees() {
     setBusy(true);
     setError("");
     setMessage("");
+    setWarning("");
     try {
       await fn();
     } catch (e) {
@@ -332,23 +339,56 @@ export default function Employees() {
       setBusy(false);
     }
   };
-  const openRecord = async (id) => {
-    const [r, docs, h] = await Promise.all([
-      api.get(`/erp/employees/workflow/joining/${id}`),
-      api.get(`/erp/employees/${id}/documents`),
-      api.get(`/erp/employees/${id}/history`),
-    ]);
-    setRecord(r.data);
-    setForm(r.data.profile);
-    setDocuments(docs.data);
-    setHistory(h.data);
+  // Mutation payloads are authoritative: acknowledge the saved ID/version before reads.
+  const applyRecord = (data) => {
+    setRecord(data);
+    setRecordNeedsRefresh(false);
+    setForm(data.profile);
     setDirty(false);
     setRemarks("");
+  };
+  const refreshDirectoryAfterSave = async () => {
+    try { await load(); }
+    catch { setWarning("Your changes were saved. The directory could not refresh; refresh it when the connection recovers."); }
+  };
+  const loadFileParts = async (id) => {
+    // Each read applies independently: a history outage cannot discard the saved version.
+    const tasks = [
+      api.get(`/erp/employees/workflow/joining/${id}`).then(({ data }) => applyRecord(data)),
+      api.get(`/erp/employees/${id}/documents`).then(({ data }) => setDocuments(data)),
+      api.get(`/erp/employees/${id}/history`).then(({ data }) => setHistory(data)),
+    ];
+    return Promise.allSettled(tasks);
+  };
+  const openRecord = async (id) => {
+    if (String(record?.id) !== String(id)) { setDocuments([]); setHistory([]); }
+    const results = await loadFileParts(id);
+    if (results[0].status === "rejected") throw results[0].reason;
+    if (results.some(result => result.status === "rejected")) {
+      setRecordNeedsRefresh(true);
+      setWarning("The employee file opened, but some details could not refresh. Refresh the file before making changes.");
+    }
     setFile(null);
-    setFileKey((k) => k + 1);
+    setFileKey(key => key + 1);
+  };
+  const refreshAfterSaved = async (success, { patch = {}, document = null } = {}) => {
+    // Partial mutation responses may omit the new employee version. Keep the confirmed
+    // outcome visible and block another write until the current file has been read.
+    setMessage(success);
+    setRecord(current => ({ ...current, ...patch }));
+    setRecordNeedsRefresh(true);
+    setDirty(false);
+    setRemarks("");
+    if (document) setDocuments(current => [document, ...current.filter(row => row.id !== document.id)]);
+    const results = await Promise.allSettled([loadFileParts(record.id), load()]);
+    const fileResults = results[0].status === "fulfilled" ? results[0].value : [];
+    const failed = results.some(result => result.status === "rejected") || fileResults.some(result => result.status === "rejected");
+    setRecordNeedsRefresh(failed);
+    if (failed) setWarning("The action was saved. The employee file could not fully refresh. Refresh the file before making another change; do not repeat the saved action.");
   };
   const editable =
     record &&
+    !recordNeedsRefresh &&
     ["DRAFT", "REJECTED"].includes(record.joining_status) &&
     can("employees.edit");
   const submittedApproval = approvals.find((x) => x.employee_id === record?.id);
@@ -379,40 +419,37 @@ export default function Employees() {
   );
   const save = () =>
     run(async () => {
-      await api.patch(`/erp/employees/workflow/joining/${record.id}`, {
+      const { data } = await api.patch(`/erp/employees/workflow/joining/${record.id}`, {
         version: record.version,
         profile: form,
       });
-      await openRecord(record.id);
-      await load();
+      applyRecord(data);
       setMessage("Employee draft saved. Continue this file anytime.");
+      await refreshDirectoryAfterSave();
     });
   const submit = () =>
     run(async () => {
-      await api.post(`/erp/employees/workflow/joining/${record.id}/submit`, {
+      const { data } = await api.post(`/erp/employees/workflow/joining/${record.id}/submit`, {
         version: record.version,
       });
-      await openRecord(record.id);
-      await load();
-      setMessage(
-        user.role === "OWNER"
-          ? "Employee approved and activated."
-          : "Employee file sent to the assigned approver.",
-      );
+      const approved = data.final === true;
+      await refreshAfterSaved(approved ? "Employee approved and activated." : "Employee file sent to the assigned approver.", {
+        patch: { joining_status: approved ? "APPROVED" : "PENDING_APPROVAL", status: approved ? "ACTIVE" : "PENDING_APPROVAL" },
+      });
     });
   const decision = (decision) =>
     run(async () => {
-      await api.post(
+      const { data } = await api.post(
         `/erp/employees/workflow/approvals/${submittedApproval.id}/decision`,
         { decision, remarks },
       );
-      await openRecord(record.id);
-      await load();
-      setMessage(
-        decision === "REJECT"
-          ? "File returned with remarks. The employee ID is retained."
-          : "Approval recorded.",
-      );
+      setApprovals(current => current.filter(row => row.id !== submittedApproval.id));
+      await refreshAfterSaved(decision === "REJECT"
+        ? "File returned with remarks. The employee ID is retained."
+        : "Approval recorded.", {
+        patch: decision === "REJECT" ? { joining_status: "REJECTED", status: "REJECTED" }
+          : data.final ? { joining_status: "APPROVED", status: "ACTIVE" } : {},
+      });
     });
   const download = (format) =>
     run(async () => {
@@ -427,10 +464,6 @@ export default function Employees() {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
-  const refreshDocs = async () => {
-    await openRecord(record.id);
-    await load();
-  };
   return (
     <MainLayout>
       <div className="space-y-5">
@@ -510,6 +543,7 @@ export default function Employees() {
             {message}
           </p>
         )}
+        {warning && <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{warning}</p>}
         {(tab === "master" || tab === "reports") && (
           <div className="grid gap-3 rounded-xl border bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
             <input
@@ -652,11 +686,15 @@ export default function Employees() {
                         intimation,
                       );
                       setIntimation({});
-                      await load();
-                      await openRecord(data.id);
+                      applyRecord(data);
+                      setDocuments([]);
+                      setHistory([]);
+                      setFile(null);
+                      setFileKey((key) => key + 1);
                       setMessage(
                         `Intimation submitted. Permanent employee ID: ${data.employee_code}`,
                       );
+                      await refreshDirectoryAfterSave();
                     });
                   }}
                 >
@@ -791,15 +829,16 @@ export default function Employees() {
                       disabled={busy}
                       onClick={() =>
                         run(async () => {
-                          await api.put(
+                          const { data } = await api.put(
                             `/erp/employees/workflow/approval-categories/${r.id}`,
                             {
                               approver_user_id: r.approver_user_id,
                               is_final_approver: r.is_final_approver,
                             },
                           );
-                          await load();
+                          setRules(current => current.map(row => row.id === data.id ? data : row));
                           setMessage("Joining approval step saved.");
+                          await refreshDirectoryAfterSave();
                         })
                       }
                     >
@@ -1054,6 +1093,14 @@ export default function Employees() {
                 Close
               </button>
             </div>
+            {recordNeedsRefresh && <button disabled={busy} className={buttonClass + " mt-3"} onClick={() => run(async () => {
+              const results = await Promise.allSettled([loadFileParts(record.id), load()]);
+              const fileResults = results[0].status === "fulfilled" ? results[0].value : [];
+              const failed = results.some(result => result.status === "rejected") || fileResults.some(result => result.status === "rejected");
+              setRecordNeedsRefresh(failed);
+              if (failed) setWarning("The saved employee file could not fully refresh. Try again when the connection recovers.");
+              else setMessage("Employee file refreshed. The latest saved version is loaded.");
+            })}>Refresh employee file</button>}
             <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs">
               {record.joining_status === "APPROVED"
                 ? "Approved employee file. Identity and joining information are retained; renew compliance documents below."
@@ -1075,6 +1122,7 @@ export default function Employees() {
                 {message}
               </p>
             )}
+            {warning && <p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{warning}</p>}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -1082,7 +1130,7 @@ export default function Employees() {
               }}
               className="mt-5 space-y-5"
             >
-              <fieldset disabled={busy || !editable}>
+              <fieldset disabled={busy || recordNeedsRefresh || !editable}>
                 {groups
                   .filter(
                     ([title]) =>
@@ -1107,7 +1155,7 @@ export default function Employees() {
                       {title === "Bank details" && editable && (
                         <button
                           type="button"
-                          disabled={busy || !form.bank_ifsc}
+                          disabled={busy || recordNeedsRefresh || !form.bank_ifsc}
                           className={buttonClass + " mt-3"}
                           onClick={() =>
                             run(async () => {
@@ -1142,13 +1190,13 @@ export default function Employees() {
               </fieldset>
               {editable && (
                 <div className="flex flex-wrap gap-3">
-                  <button className={buttonClass} disabled={busy || !dirty}>
+                  <button className={buttonClass} disabled={busy || recordNeedsRefresh || !dirty}>
                     Save draft
                   </button>
                   <button
                     type="button"
                     className={buttonClass}
-                    disabled={busy || dirty}
+                    disabled={busy || recordNeedsRefresh || dirty}
                     onClick={submit}
                   >
                     {user.role === "OWNER"
@@ -1190,22 +1238,21 @@ export default function Employees() {
                           if (v) body.append(k, v);
                         });
                         body.append("file", file);
-                        await api.post(
+                        const { data } = await api.post(
                           `/erp/employees/${record.id}/documents`,
                           body,
                           {
                             headers: { "Content-Type": "multipart/form-data" },
                           },
                         );
-                        await refreshDocs();
-                        setMessage(
-                          "Document uploaded. Verify it after checking the original file.",
-                        );
+                        setFile(null);
+                        setFileKey(key => key + 1);
+                        await refreshAfterSaved("Document uploaded. Verify it after checking the original file.", { document: data });
                       });
                     }}
                   >
                     <fieldset
-                      disabled={busy || dirty}
+                      disabled={busy || recordNeedsRefresh || dirty}
                       className="grid gap-3 sm:grid-cols-3"
                     >
                       <label className="text-xs">
@@ -1263,7 +1310,7 @@ export default function Employees() {
                     </fieldset>
                     <button
                       className={buttonClass + " mt-3"}
-                      disabled={busy || dirty || !file}
+                      disabled={busy || recordNeedsRefresh || dirty || !file}
                     >
                       Upload document
                     </button>
@@ -1287,7 +1334,7 @@ export default function Employees() {
                       </div>
                       <div className="flex flex-wrap gap-3">
                         <button
-                          disabled={busy || dirty}
+                          disabled={busy || recordNeedsRefresh || dirty}
                           className="text-teal-700"
                           onClick={() =>
                             run(async () => {
@@ -1310,23 +1357,22 @@ export default function Employees() {
                             user.role === "OWNER") && (
                             <>
                               <button
-                                disabled={busy || dirty}
+                                disabled={busy || recordNeedsRefresh || dirty}
                                 className="text-teal-700"
                                 onClick={() =>
                                   run(async () => {
-                                    await api.patch(
+                                    const { data } = await api.patch(
                                       `/erp/employees/${record.id}/documents/${d.id}/verify`,
                                       { status: "VERIFIED" },
                                     );
-                                    await refreshDocs();
-                                    setMessage("Document verified.");
+                                    await refreshAfterSaved("Document verified.", { document: { ...d, ...data } });
                                   })
                                 }
                               >
                                 Verify
                               </button>
                               <button
-                                disabled={busy || dirty}
+                                disabled={busy || recordNeedsRefresh || dirty}
                                 className="text-red-700"
                                 onClick={() => {
                                   const notes = window.prompt(
@@ -1334,11 +1380,11 @@ export default function Employees() {
                                   );
                                   if (notes)
                                     run(async () => {
-                                      await api.patch(
+                                      const { data } = await api.patch(
                                         `/erp/employees/${record.id}/documents/${d.id}/verify`,
                                         { status: "REJECTED", notes },
                                       );
-                                      await refreshDocs();
+                                      await refreshAfterSaved("Document rejected with the recorded remarks.", { document: { ...d, ...data } });
                                     });
                                 }}
                               >
@@ -1373,14 +1419,14 @@ export default function Employees() {
                 />
                 <div className="mt-3 flex gap-3">
                   <button
-                    disabled={busy}
+                    disabled={busy || recordNeedsRefresh}
                     className={buttonClass}
                     onClick={() => decision("APPROVE")}
                   >
                     Approve
                   </button>
                   <button
-                    disabled={busy || !remarks.trim()}
+                    disabled={busy || recordNeedsRefresh || !remarks.trim()}
                     className={buttonClass}
                     onClick={() => decision("REJECT")}
                   >
@@ -1419,17 +1465,16 @@ export default function Employees() {
                       }
                     />
                     <button
-                      disabled={busy || !stateForm.reason.trim()}
+                      disabled={busy || recordNeedsRefresh || !stateForm.reason.trim()}
                       className={buttonClass}
                       onClick={() =>
                         run(async () => {
-                          await api.patch(
+                          const { data } = await api.patch(
                             `/erp/employees/${record.id}/status`,
                             { ...stateForm, version: record.version },
                           );
-                          await openRecord(record.id);
-                          await load();
-                          setMessage("Employment status updated and recorded.");
+                          setStateForm(current => ({ ...current, reason: "" }));
+                          await refreshAfterSaved("Employment status updated and recorded.", { patch: data });
                         })
                       }
                     >

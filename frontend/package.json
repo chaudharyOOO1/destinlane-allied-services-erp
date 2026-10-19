@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
+    "test:module-workflows": "bash scripts/test-browser.sh module-workflows",
+    "test:dashboard": "bash scripts/test-browser.sh dashboard",
     "test:staff-save": "bash scripts/test-browser.sh staff-save",
     "test:travel-expenses": "bash scripts/test-browser.sh travel-expenses",
     "test:md-everyday": "bash scripts/test-browser.sh md-everyday",

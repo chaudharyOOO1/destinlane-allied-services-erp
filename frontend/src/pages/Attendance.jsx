@@ -113,8 +113,9 @@ export default function Attendance() {
     setMessage("");
     try {
       await fn();
-      await load();
       setMessage(success);
+      try { await load(); }
+      catch { setError("The action was saved. The attendance register could not refresh; use Refresh before making another change."); }
     } catch (e) {
       setError(fail(e));
     } finally {

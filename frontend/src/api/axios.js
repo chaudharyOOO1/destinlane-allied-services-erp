@@ -25,7 +25,10 @@ api.interceptors.response.use(
   },
   (error) => {
     const publicAuthRequest = ['/auth/login', '/auth/reset-password', '/auth/admin-recover-password', '/auth/setup-admin'].includes(error?.config?.url);
-    if (error?.response?.status === 401 && !publicAuthRequest && !window.location.pathname.startsWith('/login')) {
+    // An old request must not revoke a newer session established while it ran.
+    const currentToken = localStorage.getItem(TOKEN_KEY);
+    const requestAuthorization = error?.config?.headers?.Authorization || error?.config?.headers?.get?.('Authorization');
+    if (error?.response?.status === 401 && !publicAuthRequest && currentToken && requestAuthorization === `Bearer ${currentToken}` && !window.location.pathname.startsWith('/login')) {
       localStorage.removeItem(TOKEN_KEY);
       window.location.assign('/login');
     }

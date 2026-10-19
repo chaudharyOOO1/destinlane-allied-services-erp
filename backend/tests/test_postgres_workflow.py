@@ -191,11 +191,19 @@ def test_bootstrap_and_employee_to_invoice(postgres_workflow):
     invoice = invoices["invoices"][0]
     assert float(invoice["subtotal"]) == 1375 and float(invoice["tax_amount"]) == 247.5
     assert float(invoice["total_amount"]) == 1622.5
+    billing_rows = call("GET", "/erp/billing/invoices")
+    assert len(billing_rows) == 1 and billing_rows[0]["id"] == invoice["id"]
+    assert billing_rows[0]["client_name"] == "Local test client"
+    assert float(billing_rows[0]["total_amount"]) == 1622.5
+    assert "expenses" not in billing_rows[0] and "bookkeeping" not in billing_rows[0]
     assert call("POST", "/erp/billing/generate", json={"month": month, "client_id": client_id})["invoices_created"] == 0
     for path in ["/erp/company", "/erp/internal-staff", "/erp/clients", "/erp/sites", "/erp/contracts",
                  "/erp/employees", "/erp/rosters", "/erp/attendance/options", "/erp/accounts", "/erp/summary", "/owner/executive-summary"]:
         call("GET", path)
-    assert float(call("GET", "/owner/executive-summary")["kpis"]["payroll"]) == 1064.85
+    overview = call("GET", "/owner/executive-summary")["sections"]
+    assert overview["workforce"]["employee_active"] == 1
+    assert overview["attendance"]["recorded"] == 1
+    assert overview["billing"]["issued_count"] == 0  # Generated invoice is still a draft.
     assert len(call("GET", "/erp/rosters?status=COMPLETED")) == 1
     assert call("GET", "/erp/rosters?status=SCHEDULED") == []
     for table in ("employees", "employee_documents", "attendance", "salary_slips"):
@@ -276,3 +284,22 @@ def test_staff_creation_first_login_and_working_permissions(postgres_workflow):
         with pytest.raises(Exception):
             db.execute(text('update internal_staff set staff_code=\'DASS9999\' where id=:id'),{'id':record['id']})
         db.rollback()
+
+
+def test_billing_directory_has_its_own_permission_boundary(postgres_workflow):
+    http, sessions, engine, today, start, owner_id, hr_id, client_id, site_id, objects = postgres_workflow
+    with sessions() as db:
+        actor = db.get(User, hr_id)
+        actor.role = UserRole.ACCOUNTS
+        db.execute(text("insert into user_permissions(user_id,permission_key,allowed) values(:id,'finance.view',false)"), {"id": hr_id})
+        db.commit()
+    response = http.post('/api/v1/auth/login', json={'login_id': 'TEST-HR', 'password': 'local-test-password'})
+    assert response.status_code == 200
+    headers = {'Authorization': 'Bearer ' + response.json()['access_token']}
+    assert http.get('/api/v1/erp/billing/invoices', headers=headers).status_code == 200
+    assert http.get('/api/v1/erp/accounts', headers=headers).status_code == 403
+    with sessions() as db:
+        db.execute(text("insert into user_permissions(user_id,permission_key,allowed) values(:id,'billing.view',false)"), {"id": hr_id})
+        db.commit()
+    assert http.get('/api/v1/erp/billing/invoices', headers=headers).status_code == 403
+    assert http.get('/api/v1/erp/billing/invoices').status_code == 401

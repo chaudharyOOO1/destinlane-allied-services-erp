@@ -137,8 +137,9 @@ export default function Rosters() {
         });
       } else await api.post("/erp/rosters", data);
       reset();
-      await load();
       setMessage("Deployment schedule saved.");
+      try { await load(); }
+      catch { setError("The schedule was saved. The deployment list could not refresh; use Refresh to load the latest records."); }
     });
   };
   const filtered = rows.filter(
@@ -574,15 +575,15 @@ export default function Rosters() {
                                 );
                                 if (reason)
                                   run(async () => {
-                                    await api.post(
+                                    const { data } = await api.post(
                                       `/erp/rosters/${r.id}/cancel`,
                                       { version: r.version, reason },
                                     );
+                                    setRows(current => current.map(row => row.id === data.id ? { ...row, ...data } : row));
                                     reset();
-                                    await load();
-                                    setMessage(
-                                      "Assignment cancelled and retained in history.",
-                                    );
+                                    setMessage("Assignment cancelled and retained in history.");
+                                    try { await load(); }
+                                    catch { setError("The cancellation was saved. The deployment list could not refresh; use Refresh to load the latest records."); }
                                   });
                               }}
                             >

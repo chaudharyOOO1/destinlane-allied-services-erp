@@ -70,7 +70,7 @@ Verify health, authentication, authorised and denied actions, actual saves/reloa
 
 ## Continue here
 
-1. Investigate SAVE-002 in `Employees.jsx`: a successful draft PATCH is followed by multiple GETs inside the same error boundary. Write a failing regression before changing it.
+1. SAVE-002 and the affected employee workflow refresh paths are now corrected; see the professional workspace release. Preserve the new response/version and unknown-version recovery tests when extending the workflow.
 2. Investigate uncertain mutation outcomes and Supabase Auth/PostgreSQL compensation. Do not add automatic retries without idempotency.
 3. Extend staff lifecycle coverage to legacy-login activation, navigation/role acceptance, and real Supabase provisioning in a suitable test environment. Access/status post-write read failures already have browser coverage.
 4. Expand the audit to other master save paths, then progress through the action-plan gates.
@@ -88,3 +88,7 @@ Read [MD accounting release handover](MD_ACCOUNTING_RELEASE.md) before editing. 
 ## Company Money simplification
 
 See [everyday money handover](EVERYDAY_MONEY_RELEASE.md). Start at `MDWorkspace.jsx` → `md_transactions.py` routes/service → existing journal posting/report service. No database migration or new financial truth store. Keep the MD identity boundary, exact backend arithmetic and advanced journal controls. Business categories must not count collections/loans/transfers as revenue or expense.
+
+## Professional ERP workspace
+
+See [workspace release/handover](PROFESSIONAL_ERP_RELEASE.md) for the current navigation, scoped dashboard contracts, real billing endpoint, save recovery, lazy loading, removed demo paths and logo integration. Add `npm run test:dashboard` and `npm run test:module-workflows` to frontend verification. `/owner/executive-summary` now returns permission-scoped source sections, not the retired gross-invoice P&L estimate. The supplied official logo still needs a downloadable original file/URL; no original artwork bytes are committed.

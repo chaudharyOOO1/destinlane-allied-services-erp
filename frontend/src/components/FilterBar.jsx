@@ -1,92 +1,27 @@
-import { Search, Filter, LayoutGrid, List, Download } from 'lucide-react';
+import { Search, LayoutGrid, List, Download, X } from 'lucide-react';
 
 export default function FilterBar({
   searchTerm,
   setSearchTerm,
   filters = [],
   onFilterChange,
-  placeholder = 'Search operations telemetry...',
+  placeholder = 'Search records…',
+  searchLabel = 'Search records',
   viewMode = null,
   setViewMode = null,
   onExport = null,
 }) {
-  return (
-    <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 mb-6">
-      {/* Search Input with Cyber Look */}
-      <div className="relative flex-1">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-400/70" />
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder={placeholder}
-          className="w-full cyber-input pl-10 h-11 text-sm placeholder:text-slate-500 border border-slate-800 hover:border-slate-700"
-        />
-        {searchTerm && (
-          <button 
-            onClick={() => setSearchTerm('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white px-1.5 py-0.5 rounded bg-slate-800"
-          >
-            Clear
-          </button>
-        )}
-      </div>
-
-      {/* Filters & Actions */}
-      <div className="flex flex-wrap items-center gap-3">
-        {filters.map((filter) => (
-          <div key={filter.name} className="relative flex items-center">
-            <Filter className="absolute left-3 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-            <select
-              value={filter.value}
-              onChange={(e) => onFilterChange(filter.name, e.target.value)}
-              className="cyber-input pl-8 pr-8 py-2 text-xs font-medium appearance-none cursor-pointer bg-slate-900 border-slate-800 hover:border-slate-700"
-            >
-              {filter.options.map((opt) => (
-                <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-200">
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        ))}
-
-        {/* View Mode Toggle (Optional) */}
-        {viewMode && setViewMode && (
-          <div className="flex items-center p-1 bg-slate-900 rounded-xl border border-slate-800">
-            <button
-              onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-lg transition-colors ${
-                viewMode === 'table' ? 'bg-cyan-500/20 text-cyan-400' : 'text-slate-400 hover:text-slate-200'
-              }`}
-              title="Table View"
-            >
-              <List className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg transition-colors ${
-                viewMode === 'grid' ? 'bg-cyan-500/20 text-cyan-400' : 'text-slate-400 hover:text-slate-200'
-              }`}
-              title="Card Grid View"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Export Data Button */}
-        {onExport && (
-          <button
-            onClick={onExport}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 transition-all"
-            title="Export CSV"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Export</span>
-          </button>
-        )}
-      </div>
+  return <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="relative min-w-0 flex-1"><Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <input type="search" aria-label={searchLabel} value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder={placeholder} className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-10 text-sm text-slate-900 placeholder:text-slate-400" />
+      {searchTerm && <button type="button" onClick={() => setSearchTerm('')} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:bg-slate-100"><X size={16} /></button>}
     </div>
-  );
+    <div className="flex flex-wrap items-center gap-2">{filters.map(filter => <label key={filter.name} className="min-w-0"><span className="sr-only">{filter.label || `${filter.name.replaceAll('_', ' ')} filter`}</span><select value={filter.value} onChange={event => onFilterChange?.(filter.name, event.target.value)} className="h-10 max-w-full rounded-lg border border-slate-300 bg-white pl-3 pr-8 text-sm text-slate-700">{filter.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>)}
+      {viewMode && setViewMode && <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1" role="group" aria-label="Record display">
+        <button type="button" onClick={() => setViewMode('table')} aria-label="Table view" aria-pressed={viewMode === 'table'} className={`rounded-md p-1.5 ${viewMode === 'table' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:bg-slate-50'}`}><List size={17} /></button>
+        <button type="button" onClick={() => setViewMode('grid')} aria-label="Card view" aria-pressed={viewMode === 'grid'} className={`rounded-md p-1.5 ${viewMode === 'grid' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:bg-slate-50'}`}><LayoutGrid size={17} /></button>
+      </div>}
+      {onExport && <button type="button" onClick={onExport} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"><Download size={16} />Export CSV</button>}
+    </div>
+  </div>;
 }

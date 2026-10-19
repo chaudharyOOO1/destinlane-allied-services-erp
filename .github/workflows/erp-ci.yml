@@ -86,5 +86,9 @@ jobs:
         run: npm run test:md-accounting
       - name: Everyday money browser workflow (simulated API)
         run: npm run test:md-everyday
+      - name: Dashboard and navigation browser workflow (simulated API)
+        run: npm run test:dashboard
+      - name: Module save and billing browser workflows (simulated API)
+        run: npm run test:module-workflows
       - name: Production build
         run: npm run build

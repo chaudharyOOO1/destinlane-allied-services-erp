@@ -18,3 +18,5 @@ Use this with the PR template. Mark not-applicable items with a reason; do not i
 Branch protection and mandatory human reviews are repository settings, not enforced by this document or PR checkboxes.
 
 For Company Money: inspect business-action-to-ledger mappings; preview must be read-only, creation draft-only, client lines rejected, posting versioned, bank-match failure distinct from successful posting, and reports cumulative where appropriate. Run both `test:md-accounting` and `test:md-everyday`; backend `test_md_transactions.py` checks classifications and shared identity boundary.
+
+For the professional workspace, trace each dashboard source permission before its SQL query; preserve `ready/restricted/error` semantics and India date boundaries. No role hardcodes, fabricated growth, attendance defaults, inferred collections or local-only invoice saves. Verify actual API routes, generated draft references, refresh failure handling, mobile focus/width and logo provenance. Review the changed Management summary contract and existing billing GST policy explicitly.

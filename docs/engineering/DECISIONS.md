@@ -27,3 +27,15 @@ An HTTP timeout or lost mutation response remains an uncertain outcome: verify t
 Status: approved by the user, 19 October 2026; implemented in Company Money.
 
 Daily recording asks for business reason, category, party, amount and reference. The server generates balanced drafts; the existing posting engine and ledger remain authoritative. Advanced Accounting retains accountant controls and multi-line tax/accrual work. This reduces operator effort without duplicating monetary truth or interpreting every bank deposit as income. Preview does not save, draft does not enter reports, and confirmation is explicit. Classification and genuine opening figures still require accountant review.
+
+## ADR-005 — Source permissions and honest unavailable states
+
+Status: implemented, 19 October 2026.
+
+A dashboard grant opens a page, not every source register. The backend checks effective source permissions before SQL and isolates independent sections. A true zero is distinct from a restricted or failed source. No attendance percentage, financial collection or statutory payment liability is invented when source data is missing. Retire the old Management pseudo-P&L instead of presenting gross invoice values and multiplied payroll joins as profit. The MD posted ledger remains separate.
+
+## ADR-006 — Load the requested workspace
+
+Status: implemented, 19 October 2026.
+
+Use lazy route imports with an explicit loading state and reload/recovery boundary. This reduces the initial production JavaScript entry from roughly 659 kB to 193 kB before compression; individual module code is fetched as needed. Do not remove workflow validation or backend rules to reduce the bundle. Rendering/network recovery must not automatically repeat a mutation.

@@ -1,37 +1,39 @@
+import {lazy, Suspense} from 'react';
+import WorkspaceErrorBoundary from './components/WorkspaceErrorBoundary';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { AccessProvider } from './context/AccessContext';
 import { CompanyProvider } from './context/CompanyContext';
-import CompanySettings from './pages/CompanySettings';
-import StaffMaster from './pages/StaffMaster';
-import TravelExpenses from './pages/TravelExpenses';
-import MDWorkspace from './pages/MDWorkspace';
+const CompanySettings = lazy(() => import('./pages/CompanySettings'));
+const StaffMaster = lazy(() => import('./pages/StaffMaster'));
+const TravelExpenses = lazy(() => import('./pages/TravelExpenses'));
+const MDWorkspace = lazy(() => import('./pages/MDWorkspace'));
 import ProtectedRoute from './components/ProtectedRoute';
-import Login from './pages/Login';
-import AdminSetup from './pages/AdminSetup';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import AdminRecovery from './pages/AdminRecovery';
-import Dashboard from './pages/Dashboard';
-import ERPModules from './pages/ERPModules';
-import Employees from './pages/Employees';
-import Personnel from './pages/Personnel';
-import Clients from './pages/Clients';
-import Sites from './pages/Sites';
-import Contracts from './pages/Contracts';
-import Rosters from './pages/Rosters';
-import Attendance from './pages/Attendance';
-import ControlCenter from './pages/ControlCenter';
-import InvoicesView from './pages/InvoicesView';
-import OwnerExecutiveView from './pages/OwnerExecutiveView';
-import PayrollView from './pages/PayrollView';
-import UserManagement from './pages/UserManagement';
-import IfscMaster from './pages/IfscMaster';
-import AccountSettings from './pages/AccountSettings';
+const Login = lazy(() => import('./pages/Login'));
+const AdminSetup = lazy(() => import('./pages/AdminSetup'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const AdminRecovery = lazy(() => import('./pages/AdminRecovery'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const ERPModules = lazy(() => import('./pages/ERPModules'));
+const Employees = lazy(() => import('./pages/Employees'));
+const Personnel = lazy(() => import('./pages/Personnel'));
+const Clients = lazy(() => import('./pages/Clients'));
+const Sites = lazy(() => import('./pages/Sites'));
+const Contracts = lazy(() => import('./pages/Contracts'));
+const Rosters = lazy(() => import('./pages/Rosters'));
+const Attendance = lazy(() => import('./pages/Attendance'));
+const ControlCenter = lazy(() => import('./pages/ControlCenter'));
+const InvoicesView = lazy(() => import('./pages/InvoicesView'));
+const OwnerExecutiveView = lazy(() => import('./pages/OwnerExecutiveView'));
+const PayrollView = lazy(() => import('./pages/PayrollView'));
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+const IfscMaster = lazy(() => import('./pages/IfscMaster'));
+const AccountSettings = lazy(() => import('./pages/AccountSettings'));
 import './App.css';
 
 function App() {
-  return <AuthProvider><AccessProvider><CompanyProvider><Router><Routes>
+  return <AuthProvider><AccessProvider><CompanyProvider><Router><WorkspaceErrorBoundary><Suspense fallback={<div role="status" className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-600">Loading workspace…</div>}><Routes>
     <Route path="/login" element={<Login />} />
     <Route path="/admin-setup" element={<AdminSetup />} />
     <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -63,6 +65,6 @@ function App() {
     </Route>
     <Route path="/" element={<Navigate to="/erp" replace />} />
     <Route path="*" element={<Navigate to="/erp" replace />} />
-  </Routes></Router></CompanyProvider></AccessProvider></AuthProvider>;
+  </Routes></Suspense></WorkspaceErrorBoundary></Router></CompanyProvider></AccessProvider></AuthProvider>;
 }
 export default App;

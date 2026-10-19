@@ -44,3 +44,7 @@ Authorised after the first saving/documentation batch. Implement staff-owned tra
 ## Added scope — MD bookkeeping and accounting
 
 User authorised deployment and a separate accounting area for DestinLane Administrator (ADMIN-001), including all company-current-account bookkeeping. Chosen basis: INR, accrual double-entry, April–March. Scope includes chart/bank setup, confirmed openings, versioned drafts/immutable posting, reversals, period locks, bank CSV matching/reconciliation, general ledger, trial balance, P&L, balance sheet, audit and exports. Actual opening figures/bank completeness and statutory accountant review remain required. This does not complete every statutory/accounting automation item in phase 5.
+
+## Professional workspace delivery — 19 October 2026
+
+The user requested a professional dashboard across the ERP and removal of dummy/play-card behavior. This delivery standardises shared navigation, light presentation, source-backed overviews, real invoice actions, save/reload recovery and module loading. It does not mark every operational/payroll/compliance/production-readiness gate above complete. See [workspace functional scope](functional/PROFESSIONAL_WORKSPACE.md), [operator guide](user-guides/ERP_WORKSPACE.md) and [release evidence](engineering/PROFESSIONAL_ERP_RELEASE.md). Official logo placement is implemented, with the original downloadable asset still required.

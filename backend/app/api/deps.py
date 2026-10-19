@@ -34,7 +34,7 @@ def _request_permission(request: Request) -> str | None:
         ("/erp/contracts","contracts"),("/erp/sites","sites"),("/erp/rosters","rosters"),
         ("/erp/attendance","attendance"),("/erp/payroll","payroll"),("/erp/accounts","finance"),
         ("/erp/billing","billing"),("/erp/compliance","compliance"),("/erp/risks","risks"),
-        ("/erp/summary","dashboard"),("/erp/ifsc","employees"),
+        ("/erp/summary","dashboard"),("/erp/dashboard","dashboard"),("/erp/ifsc","employees"),
         ("/erp/employee-documents","employees"),("/erp/compliance-expiry","compliance"),
         ("/erp/corporate-compliances","compliance"),("/erp/expenses","finance"),
         ("/erp/risk-flags","risks"),("/erp/risk-engine","risks"),

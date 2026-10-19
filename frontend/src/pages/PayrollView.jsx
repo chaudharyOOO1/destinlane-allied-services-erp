@@ -1,15 +1,84 @@
-import { useEffect,useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import api from '../api/axios';
 import { useAccess } from '../context/AccessContext';
 import { Calculator, Download, Lock, RefreshCw } from 'lucide-react';
-export default function PayrollView(){
- const {can}=useAccess();
- const [month,setMonth]=useState(new Date().toISOString().slice(0,7)),[rows,setRows]=useState([]),[msg,setMsg]=useState(''),[loading,setLoading]=useState(false);
- const load=async()=>{try{setRows((await api.get('/erp/payroll',{params:{month}})).data||[])}catch(e){setMsg(e.response?.data?.detail||'Unable to load payroll')}};
- useEffect(()=>{load()},[month]);
- const calculate=async()=>{setLoading(true);try{const r=await api.post('/erp/payroll/calculate',{month});setMsg(r.data.employees_processed+' employees calculated; '+r.data.salary_holds+' held.');await load()}catch(e){setMsg(e.response?.data?.detail||'Payroll calculation failed')}finally{setLoading(false)}};
- const hold=async(id)=>{const reason=window.prompt('Hold reason: Missing Police Verification / Absconding / Pending Uniform Cost / Manual Flag','Manual Flag');if(!reason)return;const note=window.prompt('Mandatory audit note');if(!note)return;try{await api.post('/erp/payroll/'+id+'/hold',{reason,audit_note:note});await load()}catch(e){setMsg(e.response?.data?.detail||'Salary hold failed')}};
- const pdf=async(id,code)=>{const r=await api.get('/erp/payroll/slips/'+id+'/pdf',{responseType:'blob'});const url=URL.createObjectURL(r.data);const a=document.createElement('a');a.href=url;a.download='salary-slip-'+code+'.pdf';a.click();URL.revokeObjectURL(url)};
- return <MainLayout><div className='space-y-5'><div className='flex justify-between items-center'><div><h1 className='text-2xl font-black text-slate-900'>Statutory Payroll</h1><p className='text-xs text-slate-500 mt-1'>Attendance-driven PF, ESIC, LWF, Uniform EMI, salary holds and payslips.</p></div><div className='flex gap-2'><input type='month' value={month} onChange={e=>setMonth(e.target.value)} className='h-10 border border-slate-200 rounded-xl px-3'/>{can('payroll.create')&&<button onClick={calculate} disabled={loading} className='h-10 px-4 rounded-xl bg-teal-600 text-white font-bold flex gap-2 items-center'><Calculator className='w-4 h-4'/>{loading?'Calculating...':'Calculate Payroll'}</button>}<button onClick={load} className='p-2 rounded-xl border border-slate-200'><RefreshCw className='w-4 h-4'/></button></div></div>{msg&&<div className='p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs'>{msg}</div>}<div className='bg-white border border-slate-200 rounded-2xl overflow-auto shadow-sm'><table className='w-full text-xs'><thead className='bg-slate-50'><tr>{['Employee','Present','OT','Gross','PF','ESIC','LWF','Uniform','Net','Status','Actions'].map(h=><th key={h} className='p-3 text-left'>{h}</th>)}</tr></thead><tbody>{rows.map(x=><tr key={x.id} className='border-t border-slate-100'><td className='p-3'><b>{x.name}</b><div className='text-[10px] text-slate-400'>{x.employee_code}</div></td><td className='p-3'>{x.present_days}</td><td className='p-3'>{x.overtime_hours}</td><td className='p-3'>{x.gross_pay}</td><td className='p-3'>{x.pf}</td><td className='p-3'>{x.esic}</td><td className='p-3'>{x.lwf}</td><td className='p-3'>{x.uniform_emi}</td><td className='p-3 font-bold'>{x.net_pay}</td><td className='p-3'><span className={x.lifecycle_status==='HELD'?'text-red-600 font-bold':'text-emerald-600'}>{x.lifecycle_status}</span></td><td className='p-3 flex gap-1'><button onClick={()=>pdf(x.id,x.employee_code)} title='Download payslip' className='p-2 rounded-lg border'><Download className='w-3.5 h-3.5'/></button>{can('payroll.create')&&<button onClick={()=>hold(x.id)} title='Place salary hold' className='p-2 rounded-lg border'><Lock className='w-3.5 h-3.5'/></button>}</td></tr>)}{!rows.length&&<tr><td colSpan='11' className='p-10 text-center text-slate-400'>No payroll slips calculated for this month.</td></tr>}</tbody></table></div></div></MainLayout>;
+
+const money = value => value == null ? '—' : Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const failure = error => typeof error.response?.data?.detail === 'string' ? error.response.data.detail : 'Unable to complete the request. Check your connection and retry.';
+const thisMonth = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
+
+export default function PayrollView() {
+  const { can } = useAccess();
+  const [month, setMonth] = useState(thisMonth);
+  const [rows, setRows] = useState([]);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const action = useRef(false);
+  const generation = useRef(0);
+  const load = useCallback(async () => {
+    const requestId = ++generation.current;
+    setLoading(true);
+    try {
+      const { data } = await api.get('/erp/payroll', { params: { month } });
+      if (requestId === generation.current) setRows(data || []);
+    } finally { if (requestId === generation.current) setLoading(false); }
+  }, [month]);
+  useEffect(() => {
+    setRows([]); setError(''); setMessage(''); setWarning('');
+    load().catch(err => setError(failure(err)));
+    return () => { generation.current++; };
+  }, [load]);
+  async function act(work) {
+    if (action.current) return;
+    action.current = true; setBusy(true); setError(''); setMessage(''); setWarning('');
+    try { await work(); }
+    catch (err) { setError(failure(err)); }
+    finally { action.current = false; setBusy(false); }
+  }
+  async function refreshSaved() {
+    try { await load(); }
+    catch { setWarning('The change was saved. Payroll records could not refresh; use Refresh to load the latest status.'); }
+  }
+  const calculate = () => act(async () => {
+    const { data } = await api.post('/erp/payroll/calculate', { month });
+    setMessage(`${data.employees_processed} employee(s) calculated; ${data.salary_holds} held.`);
+    await refreshSaved();
+  });
+  function hold(id) {
+    const reason = window.prompt('Salary hold reason', 'Manual Flag');
+    if (!reason?.trim()) return;
+    const note = window.prompt('Required audit note');
+    if (!note?.trim()) return;
+    act(async () => {
+      await api.post(`/erp/payroll/${id}/hold`, { reason: reason.trim(), audit_note: note.trim() });
+      setRows(current => current.map(row => row.id === id ? { ...row, lifecycle_status: 'HELD' } : row));
+      setMessage('Salary hold saved with the audit note.');
+      await refreshSaved();
+    });
+  }
+  const pdf = (id, code) => act(async () => {
+    const { data } = await api.get(`/erp/payroll/slips/${id}/pdf`, { responseType: 'blob' });
+    const url = URL.createObjectURL(data);
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = `salary-slip-${code}.pdf`; anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  return <MainLayout><div className="space-y-5">
+    <header className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-2xl font-semibold text-slate-900">Payroll</h1><p className="mt-2 text-sm text-slate-500">Review attendance-based salary, configured deductions, salary holds and payslips.</p></div>
+      <div className="flex flex-wrap gap-2"><input aria-label="Payroll month" type="month" value={month} disabled={busy} onChange={event => setMonth(event.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm"/>
+        {can('payroll.create') && <button onClick={calculate} disabled={busy || loading || !month} className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Calculator size={16}/>{busy ? 'Working…' : 'Calculate payroll'}</button>}
+        <button onClick={() => act(async () => { await load(); })} disabled={busy || loading} aria-label="Refresh payroll" className="rounded-lg border border-slate-200 bg-white p-2 disabled:opacity-50"><RefreshCw size={18}/></button>
+      </div></header>
+    {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
+    {message && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
+    {warning && <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{warning}</p>}
+    <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">Calculations use completed, verified attendance and the current payroll rules. Accounts must review wages, deductions and statutory treatment before salary payment. A calculated payslip does not confirm a bank payment.</p>
+    <div className="overflow-auto rounded-xl border border-slate-200 bg-white"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{['Employee', 'Present', 'OT hours', 'Gross (₹)', 'PF (₹)', 'ESIC (₹)', 'LWF (₹)', 'Uniform (₹)', 'Net (₹)', 'Status', 'Actions'].map(label => <th key={label} className="whitespace-nowrap p-3 font-medium">{label}</th>)}</tr></thead><tbody>
+      {rows.map(row => <tr key={row.id} className="border-t border-slate-100 text-slate-700"><td className="p-3"><strong className="text-slate-900">{row.name}</strong><p className="mt-1 text-xs text-slate-500">{row.employee_code}</p></td><td className="p-3">{row.present_days}</td><td className="p-3">{row.overtime_hours}</td>{['gross_pay', 'pf', 'esic', 'lwf', 'uniform_emi', 'net_pay'].map(key => <td key={key} className={`whitespace-nowrap p-3 tabular-nums ${key === 'net_pay' ? 'font-semibold' : ''}`}>{money(row[key])}</td>)}<td className="p-3"><span className={row.lifecycle_status === 'HELD' ? 'font-semibold text-rose-700' : 'text-slate-600'}>{row.lifecycle_status}</span></td><td className="p-3"><div className="flex gap-1"><button onClick={() => pdf(row.id, row.employee_code)} disabled={busy} title="Download payslip" aria-label={`Download payslip for ${row.employee_code}`} className="rounded-lg border border-slate-200 p-2 disabled:opacity-50"><Download size={15}/></button>{can('payroll.create') && <button onClick={() => hold(row.id)} disabled={busy || row.lifecycle_status === 'HELD'} title="Place salary hold" aria-label={`Place salary hold for ${row.employee_code}`} className="rounded-lg border border-slate-200 p-2 disabled:opacity-50"><Lock size={15}/></button>}</div></td></tr>)}
+      {!rows.length && <tr><td colSpan="11" className="p-10 text-center text-sm text-slate-500">{loading ? 'Loading payroll…' : error ? 'Payroll records are unavailable. Use Refresh to retry.' : 'No payroll slips have been calculated for this month.'}</td></tr>}
+    </tbody></table></div>
+  </div></MainLayout>;
 }

@@ -1,81 +1,42 @@
-import { useEffect } from 'react';
-import { X, ShieldCheck, Terminal } from 'lucide-react';
+import { useEffect, useId, useRef } from 'react';
+import { X } from 'lucide-react';
+
+const hiddenFields = /password|token|secret|credential/i;
+const label = value => value.replaceAll('_', ' ').replace(/^./, char => char.toUpperCase());
 
 export default function DetailDrawer({ isOpen, onClose, title, subtitle, data, type = 'generic', actions = null }) {
+  const drawerRef = useRef(null);
+  const closeRef = useRef(onClose);
+  const headingId = useId();
+  const hasData = Boolean(data);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
   useEffect(() => {
-    function handleKeyDown(e) {
-      if (e.key === 'Escape' && isOpen) onClose();
+    if (!isOpen || !hasData) return;
+    const previous = document.activeElement;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    drawerRef.current?.querySelector('button')?.focus();
+    function keyboard(event) {
+      if (event.key === 'Escape') { event.preventDefault(); closeRef.current?.(); }
+      if (event.key === 'Tab') {
+        const controls = [...drawerRef.current.querySelectorAll('button:not(:disabled), a, input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')];
+        const first = controls[0]; const last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
     }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+    document.addEventListener('keydown', keyboard);
+    return () => { document.removeEventListener('keydown', keyboard); document.body.style.overflow = overflow; previous?.focus?.(); };
+  }, [isOpen, hasData]);
 
   if (!isOpen || !data) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
-      <div 
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
-        onClick={onClose}
-      />
-
-      <div className="relative w-full max-w-lg cyber-panel-glow h-full border-l border-cyan-500/30 p-6 shadow-2xl flex flex-col drawer-enter z-10 overflow-y-auto">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[10px] tracking-widest uppercase font-bold text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-500/20">
-                {type} DOSSIER
-              </span>
-              <h3 className="text-lg font-bold text-white mt-1">{title}</h3>
-              {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
-            </div>
-          </div>
-          <button 
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="flex-1 py-6 space-y-6">
-          <div className="grid grid-cols-2 gap-3">
-            {Object.entries(data).map(([key, value]) => {
-              if (typeof value === 'object' && value !== null) return null;
-              if (key === 'id' || key === 'created_at' || key === 'updated_at') return null;
-              return (
-                <div key={key} className="cyber-card p-3 rounded-xl border border-slate-800">
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                    {key.replace(/_/g, ' ')}
-                  </p>
-                  <p className="text-sm font-medium text-slate-200 mt-1 truncate">
-                    {String(value ?? '—')}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="cyber-card p-4 rounded-xl border border-slate-800 bg-slate-950/40">
-            <div className="flex items-center gap-2 mb-2 text-xs font-mono text-cyan-400">
-              <Terminal className="w-4 h-4" />
-              <span>SYSTEM METRICS & RAW TELEMETRY</span>
-            </div>
-            <pre className="text-xs font-mono text-slate-400 overflow-x-auto p-2 bg-slate-900/80 rounded border border-slate-800 max-h-48">
-              {JSON.stringify(data, null, 2)}
-            </pre>
-          </div>
-        </div>
-
-        {actions && (
-          <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
-            {actions}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  const fields = Object.entries(data).filter(([key, value]) => !hiddenFields.test(key) && key !== 'id' && (typeof value !== 'object' || value === null));
+  return <div className="fixed inset-0 z-[80] flex justify-end">
+    <div className="absolute inset-0 bg-slate-950/40" onClick={onClose} aria-hidden="true" />
+    <section ref={drawerRef} role="dialog" aria-modal="true" aria-labelledby={headingId} className="drawer-enter relative flex h-full w-full max-w-lg flex-col border-l border-slate-200 bg-white shadow-xl">
+      <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-5 sm:px-6"><div>{type !== 'generic' && <p className="mb-1 text-xs font-medium text-slate-500">{label(type)} details</p>}<h2 id={headingId} className="text-xl font-semibold text-slate-900">{title}</h2>{subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}</div><button type="button" onClick={onClose} aria-label="Close record details" className="shrink-0 rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={20} /></button></div>
+      <dl className="flex-1 divide-y divide-slate-100 overflow-y-auto px-5 sm:px-6">{fields.map(([key, value]) => <div key={key} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-5 py-4"><dt className="text-sm text-slate-500">{label(key)}</dt><dd className="break-words text-sm font-medium text-slate-800">{value === null || value === '' ? 'Not provided' : typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}</dd></div>)}</dl>
+      {actions && <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-200 px-5 py-4 sm:px-6">{actions}</div>}
+    </section>
+  </div>;
 }

@@ -2,6 +2,8 @@
 
 ## Start here
 
+- [Professional workspace functional rules](functional/PROFESSIONAL_WORKSPACE.md), [user guide](user-guides/ERP_WORKSPACE.md), [release/handover](engineering/PROFESSIONAL_ERP_RELEASE.md) and [branding](engineering/BRANDING.md).
+
 - [Company Money simplification and release](engineering/EVERYDAY_MONEY_RELEASE.md): everyday recording, backend mappings and verification.
 
 - [Verified production release record](engineering/RELEASE_20261018.md).
