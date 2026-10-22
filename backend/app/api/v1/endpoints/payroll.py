@@ -186,10 +186,23 @@ def salary_slip_pdf(slip_id: int, db: Session = Depends(get_db), current_user=De
 def generate_attendance_invoice(payload: dict, db: Session = Depends(get_db), current_user=Depends(require_accounts_or_admin)):
     billing_month = _month(str(payload.get("month", "")))
     month_end = date(billing_month.year, billing_month.month, monthrange(billing_month.year,billing_month.month)[1])
-    client_id = payload.get("client_id")
-    filters = " and s.client_id=:client_id" if client_id else ""
+    # The selector is optional, but any supplied ID must be a positive DB integer.
+    # Validate it before querying to avoid uncaught ValueError/overflow HTTP 500s.
+    raw_client_id = payload.get("client_id")
+    client_id = None
+    if raw_client_id is not None and raw_client_id != "":
+        if isinstance(raw_client_id, bool) or not isinstance(raw_client_id, (int, str)):
+            raise HTTPException(422, "client_id must be a positive integer")
+        client_id_text = str(raw_client_id).strip()
+        if not (1 <= len(client_id_text) <= 10 and client_id_text.isascii()
+                and client_id_text.isdecimal()):
+            raise HTTPException(422, "client_id must be a positive integer")
+        client_id = int(client_id_text)
+        if not 1 <= client_id <= 2147483647:
+            raise HTTPException(422, "client_id must be a positive integer")
+    filters = " and s.client_id=:client_id" if client_id is not None else ""
     params = {"start":billing_month,"end":month_end}
-    if client_id: params["client_id"]=int(client_id)
+    if client_id is not None: params["client_id"]=client_id
     rows = db.execute(text(f"""select s.id site_id,s.site_name,s.client_id,c.company_name,c.branch_region,s.branch_region site_region,
       count(a.id) filter (where a.status::text in ('present','PRESENT','late','LATE')) present_days,
       coalesce(sum(a.overtime_hours),0) overtime_hours,
@@ -212,13 +225,17 @@ def generate_attendance_invoice(payload: dict, db: Session = Depends(get_db), cu
         intra=client_region==site_state
         tax=round(subtotal*0.18,2); cgst=round(tax/2,2) if intra else 0; sgst=round(tax/2,2) if intra else 0; igst=tax if not intra else 0
         invoice_number=f"AUTO-{billing_month.strftime('%Y%m')}-{row['site_id']}"
-        existing=db.execute(text("select id from invoices where invoice_number=:n"),{"n":invoice_number}).scalar()
         data={"client_id":row["client_id"],"invoice_number":invoice_number,"billing_month":billing_month.isoformat()[:7],"issue_date":date.today(),"due_date":month_end,
           "subtotal":subtotal,"tax_rate":18,"cgst":cgst,"sgst":sgst,"igst":igst,"tax_amount":tax,"total_amount":subtotal+tax,
           "status":"DRAFT","clearance_status":"PENDING","notes":f"Auto-generated from approved attendance for {row['site_name']}"}
-        if not existing:
-            cols=", ".join(data); binds=", ".join(f":{k}" for k in data)
-            invoice=db.execute(text(f"insert into invoices({cols}) values({binds}) returning *"),data).mappings().one()
+        # A unique invoice number also protects parallel retries; a separate
+        # SELECT-before-INSERT leaves a race that may otherwise surface as HTTP 500.
+        cols=", ".join(data); binds=", ".join(f":{k}" for k in data)
+        invoice=db.execute(text(
+            f"insert into invoices({cols}) values({binds}) "
+            "on conflict (invoice_number) do nothing returning *"
+        ),data).mappings().first()
+        if invoice is not None:
             generated.append(dict(invoice))
     db.commit()
     return {"month":billing_month.isoformat()[:7],"invoices_created":len(generated),"invoices":generated}
