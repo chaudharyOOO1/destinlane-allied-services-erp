@@ -6,7 +6,7 @@ import { useAccess } from '../context/AccessContext';
 const blank = () => ({staff_id:'',gross_pay:'',deductions:'0.00',work_note:''});
 const input = 'mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm';
 const failure = error => typeof error.response?.data?.detail === 'string' ? error.response.data.detail : 'Unable to complete this request. Check the fields and retry.';
-export default function StaffMonthlyPay({month}) {
+export default function StaffMonthlyPay({month,onBusyChange}) {
   const {user} = useAuth();
   const {can} = useAccess();
   const [data,setData] = useState({staff:[],proposals:[]});
@@ -29,20 +29,40 @@ export default function StaffMonthlyPay({month}) {
   useEffect(()=>{setEditing(null);setForm(blank());setData({staff:[],proposals:[]});setDecision(null);setError('');setMessage('');load().catch(error=>setError(failure(error)));return()=>{generation.current++};},[load]);
   async function save(work){
     if(guard.current)return;
-    guard.current=true;setBusy(true);setError('');setMessage('');
+    guard.current=true;setBusy(true);onBusyChange?.(true);setError('');setMessage('');
     try{
-      await work();setDecision(null);setMessage('Saved.');
-      try{await load()}catch{setMessage('Saved. Refresh payroll to reload the latest staff proposals.')}
-    }catch(error){setError(failure(error))}finally{guard.current=false;setBusy(false)}
+      const saved=await work();
+      if(saved?.id)setData(current=>{
+        const staff=current.staff.find(row=>row.id===saved.staff_id);
+        const previous=current.proposals.find(row=>row.id===saved.id);
+        return {...current,proposals:[{...staff,...previous,...saved},...current.proposals.filter(row=>row.id!==saved.id)]};
+      });
+      setDecision(null);setMessage('Saved.');
+      try{await load()}catch{setMessage('Saved. Use Refresh staff pay to reload the latest proposals.')}
+    }catch(error){setError(failure(error))}finally{guard.current=false;setBusy(false);onBusyChange?.(false)}
   }
-  function propose(event){event.preventDefault();save(async()=>{if(editing){await api.put(`/erp/payroll/staff-monthly/${editing.id}`,{...form,staff_id:Number(form.staff_id),month,version:editing.version})}else{await api.post('/erp/payroll/staff-monthly',{...form,staff_id:Number(form.staff_id),month})}setForm(blank());setEditing(null)})}
-  function act(event){event.preventDefault();const target=decision;save(async()=>{
-    await api.post(`/erp/payroll/staff-monthly/${target.row.id}/${target.type==='PAY'?'pay':'decision'}`,target.type==='PAY'?{version:target.row.version,paid_on:paidOn,reference}:{version:target.row.version,decision:target.type,note});
-    setNote('');setReference('');setPaidOn('');
-  })}
+  function propose(event){
+    event.preventDefault();
+    save(async()=>{
+      const payload={...form,staff_id:Number(form.staff_id),month};
+      const {data}=editing
+        ? await api.put(`/erp/payroll/staff-monthly/${editing.id}`,{...payload,version:editing.version})
+        : await api.post('/erp/payroll/staff-monthly',payload);
+      setForm(blank());setEditing(null);return data;
+    });
+  }
+  function act(event){
+    event.preventDefault();const target=decision;
+    save(async()=>{
+      const {data}=await api.post(`/erp/payroll/staff-monthly/${target.row.id}/${target.type==='PAY'?'pay':'decision'}`,
+        target.type==='PAY'?{version:target.row.version,paid_on:paidOn,reference}:{version:target.row.version,decision:target.type,note});
+      setNote('');setReference('');setPaidOn('');return data;
+    });
+  }
   const management = ['OWNER','SUPER_ADMIN'].includes(user?.role);
   return <details className="rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer font-semibold text-slate-900">Internal staff · monthly Management approval</summary>
     <p className="mt-2 text-sm text-slate-500">No staff salary is generated automatically. Propose the amount for branch work this month; Management must approve each proposal. Deductions require review. Recording payment records a completed payment reference.</p>
+    <button type="button" disabled={busy} onClick={()=>{setError('');load().catch(error=>setError(failure(error)))}} className="mt-3 rounded-lg border px-3 py-2 text-sm disabled:opacity-50">Refresh staff pay</button>
     {error&&<p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}{message&&<p role="status" className="mt-3 text-sm text-emerald-700">{message}</p>}
     {(can('payroll.create')||can('payroll.edit'))&&<form onSubmit={propose} className="mt-4 grid gap-3 sm:grid-cols-2"><fieldset disabled={busy} className="contents">
       <label className="text-sm">Staff<select required disabled={Boolean(editing)} value={form.staff_id} onChange={e=>setForm({...form,staff_id:e.target.value})} className={input}><option value="">Choose active staff</option>{data.staff.map(row=><option key={row.id} value={row.id}>{row.staff_code} · {row.name} · {row.branch||'No branch'}</option>)}</select></label>

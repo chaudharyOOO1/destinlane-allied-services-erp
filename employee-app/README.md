@@ -1,67 +1,43 @@
-# Base44 Project
+# DestinLane employee portal
 
-Use this repository to run and edit the app locally, then publish changes back through Base44.
+The active application uses the ERP FastAPI backend for phone/PIN login, attendance, private documents and approved payslips. `base44/` contains historical, unmounted reference files; the active app has no Base44 SDK dependency.
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+## Web development
 
-## Prerequisites
+Use Node 22.12+ and the backend's Python/PostgreSQL setup. Start the backend on port 8000, then:
 
-1. Clone the repository using the project's Git URL.
-2. Navigate to the project directory.
-3. Install dependencies: `npm install`.
-4. Install the Base44 CLI: `npm install -g base44@latest`.
-5. Install [Deno](https://docs.deno.com/runtime/getting_started/installation/) â the local Base44 backend runs on it.
-
-Run `base44 --help` (or see the [CLI reference](https://docs.base44.com/developers/references/cli/commands/introduction)) for the full command surface.
-
-## Run Locally
-
-Three commands, from the project root:
-
-```bash
-base44 login   # one-time per machine
-base44 link    # one-time per clone
-base44 dev     # local backend + frontend together
+```sh
+npm ci
+npm run test:runtime
+npm run dev
 ```
 
-Open the frontend URL that `base44 dev` prints (typically `http://localhost:5173`).
+Open the Vite URL under `/employee/`. The development server proxies `/api` to `http://127.0.0.1:8000`; `EMPLOYEE_DEV_API_ORIGIN` can select another local backend. Production web requests use the same ERP origin. Never put service credentials in a `VITE_` setting or test against production business data.
 
-Notes:
+Validation: `npm run lint`, `npm run build`. Output goes to `dist/`; source assets are preserved. The lockfile supports npm 10 and npm 11.
 
-- **Every fresh clone needs `base44 link`.** It writes `base44/.app.jsonc` (the app-id pointer), which is deliberately gitignored. Your app id is in the Builder URL (`app.base44.com/apps/<id>/...`); `base44 link --help` shows the non-interactive flags.
-- **`base44 dev` runs the frontend for you** (via `site.serveCommand` in this repo's `base44/config.jsonc`) â never run `npm run dev` yourself: alone it serves a UI with no backend behind it (`[base44] Proxy not enabled`, every `/api` call fails), and alongside `base44 dev` the second Vite silently takes the next port and you end up looking at the wrong one.
-- **The app must be published at least once for the UI to load under `base44 dev`.** The frontend boots by fetching app settings from the hosted app; before the first publish that fails and every page redirects to login. The local API works regardless.
-- Entities, functions, and auth run locally â entity data is **in-memory only**, wiped when `base44 dev` restarts. Everything else (Core integrations, OAuth login) is forwarded to your deployed app. Full breakdown: [Local development overview](https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview).
+## Installed Android app
 
-## Frontend Only, Hosted Backend
-
-To work on just the frontend against your app's live hosted backend:
-
-```bash
-base44 dev --remote
+```sh
+npm ci
+npm run test:runtime
+npm run build:native
+npx cap add android
+node scripts/configure-android.mjs
+npx cap sync android
 ```
 
-â ï¸ In this mode writes go to your app's **production data** â plain `base44 dev` keeps everything local.
+Run `cap add android` only for a new generated Android project. Subsequent builds use `cap sync android`. Compile with Java 21 and the Android SDK, or use the repository's Android build workflow. Its artifact is `destinlane-employee-app-debug-apk`; a debug build is not a signed store release.
 
-## Publish Your Changes
+Native builds use relative assets, hash navigation and `https://erp.destinlane.in/api/v1` by default. `VITE_ERP_API_BASE_URL` can configure a different HTTPS ERP endpoint; never include credentials/query tokens. The legacy application ID remains for upgrade compatibility; the display name is DestinLane Employee.
 
-After pushing your changes to git, open the Base44 dashboard and publish the app:
+The native camera/location plugins and Android permission declarations are configured. Physical camera, precise GPS, boundary rejection, device binding, overnight shifts and payslip downloads still require real-phone acceptance. Do not infer device readiness from APK compilation alone.
 
-```bash
-base44 dashboard open
-```
+## Workflow and handover
 
-This repo syncs to Base44 through git, so publish from the dashboard rather than `base44 deploy` â a CLI deploy ships your local tree directly, bypassing the sync, and the deployed state silently diverges from the repo.
+- [Functional rules](../docs/functional/PAYROLL_AND_ACCESS_RELIABILITY.md)
+- [User guide](../docs/user-guides/PAYROLL_AND_ACCESS.md)
+- [Current development/readiness ledger](../docs/engineering/DEVELOPMENT_20261025.md)
+- [Contributor rules](../AGENTS.md)
 
-## Docs & Support
-
-GitHub integration: [https://docs.base44.com/developers/app-code/local-development/github](https://docs.base44.com/developers/app-code/local-development/github)
-
-Local development: [https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview](https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview)
-
-Support: [https://app.base44.com/support](https://app.base44.com/support)
-
-
----
-
-[![Restore to base44](https://img.shields.io/badge/Restore%20to-BASE44-orange?style=for-the-badge&logo=rocket)](https://app.base44.com/apps)
+Staff DASS accounts use the office ERP. Approved deployed employees use phone/PIN attendance access. Do not create a second identity store or bypass joining approval. The approved logo PNG is pending; current DAS text is a wordmark placeholder.

@@ -1,25 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api/axios';
 
-const failure = error => typeof error.response?.data?.detail === 'string' ? error.response.data.detail : 'Unable to save the wage. Check the fields and retry.';
+const failure = error => typeof error.response?.data?.detail === 'string' ? error.response.data.detail : 'Unable to complete the wage request. Check your connection and retry.';
 
-export default function PayrollWages({ canEdit }) {
+export default function PayrollWages({ canEdit, onBusyChange }) {
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState({ employee_id: '', effective_from: '', daily_rate: '', reason: '' });
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const action = useRef(false);
+  const readGeneration = useRef(0);
   useEffect(() => {
     let active = true;
-    api.get('/erp/payroll/wages').then(({ data }) => { if (active) setRows(data); }).catch(error => { if (active) setError(failure(error)); });
+    const request=++readGeneration.current;
+    api.get('/erp/payroll/wages').then(({ data }) => { if (active && request===readGeneration.current) setRows(data); }).catch(error => { if (active && request===readGeneration.current) setError(failure(error)); });
     return () => { active = false; };
   }, []);
   const employees = [...new Map(rows.map(row => [row.employee_id, row])).values()];
   async function save(event) {
     event.preventDefault();
     if (action.current) return;
-    action.current = true; setBusy(true); setError(''); setMessage('');
+    action.current = true; readGeneration.current++; setBusy(true); onBusyChange?.(true); setError(''); setMessage('');
     try {
       const { data } = await api.post('/erp/payroll/wages', form);
       const employee = employees.find(row => row.employee_id === data.employee_id);
@@ -27,11 +29,20 @@ export default function PayrollWages({ canEdit }) {
       setMessage('Wage saved. Calculate an unfinalised payroll month to apply the effective rate.');
       setForm(current => ({ ...current, daily_rate: '', reason: '' }));
     } catch (error) { setError(failure(error)); }
-    finally { action.current = false; setBusy(false); }
+    finally { action.current = false; setBusy(false); onBusyChange?.(false); }
+  }
+  async function refresh() {
+    const request=++readGeneration.current;
+    setError('');
+    try {
+      const {data}=await api.get('/erp/payroll/wages');
+      if(request===readGeneration.current)setRows(data);
+    } catch(error) { if(request===readGeneration.current)setError(failure(error)); }
   }
   return <details className="rounded-xl border border-slate-200 bg-white p-4">
     <summary className="cursor-pointer font-semibold text-slate-900">Employee wage setup</summary>
     <p className="mt-2 text-sm text-slate-500">Set wages paid to employees separately from client billing rates. New effective dates preserve wage history.</p>
+    <button type="button" disabled={busy} onClick={refresh} className="mt-3 rounded-lg border px-3 py-2 text-sm disabled:opacity-50">Refresh wages</button>
     {error && <p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
     {message && <p role="status" className="mt-3 text-sm text-emerald-700">{message}</p>}
     {canEdit && <form onSubmit={save} className="mt-4 grid gap-3 sm:grid-cols-2">

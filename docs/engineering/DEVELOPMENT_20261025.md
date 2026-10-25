@@ -72,3 +72,15 @@ GitHub's npm 10 clean install exposed missing optional chokidar/readdirp records
 - scripts/verify_public_routes.py now checks actual JS/CSS content types and rejects SPA HTML at asset URLs, as well as anonymous API access.
 
 The d79fef4 release passed all five GitHub workflows, including the Android build. Its employee JavaScript is served as application/javascript on the live domain. The native follow-up requires its own matching deployment/CI checks.
+
+### Verified native code release
+
+Code commit de44151dc80dd3b639e55400ed11fe38387097b2 is live as Vercel deployment dpl_AYicHPJvsuBQRf9xspRfHACRu7on (READY). All five matching GitHub workflows passed, including full PostgreSQL regression and Android APK compilation. Native-origin preflights return 200 for the configured native origins; an unknown origin returns 400. The live public employee login rendered at a 390×844 viewport without JavaScript errors or Base44 requests; no login was submitted. Public JS/CSS MIME and anonymous protected-route checks passed. Real-device acceptance is still pending.
+
+The employee README now contains the actual web/native commands instead of obsolete Base44 setup instructions. Local Vite development proxies /api to the backend, with an optional EMPLOYEE_DEV_API_ORIGIN override, so a handover does not require changing production API configuration.
+
+### Save-state and handover follow-up
+
+The staff-pay mutation response is applied to the visible list before a follow-up read. A simulated 503 after saving leaves the new DRAFT/version/net amount visible. The payroll month is disabled while child financial writes run; manual refresh buttons reload the correct child register. Wage reads use a generation guard so an older read cannot replace a newly saved wage. Account validation errors are rendered as text, including structured FastAPI validation lists.
+
+The strengthened Chromium staff-pay test delays the write response, checks the month lock, then forces a list-refresh outage and verifies the saved result remains. Both payroll/access browser cases pass, and office lint/build pass. The local employee development proxy was verified against a generated local HTTP server, including API path and dummy Authorization forwarding; no production data was used.
