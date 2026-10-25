@@ -1,6 +1,6 @@
 import json
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -9,6 +9,7 @@ from app.api.permissions import has_permission
 from app.core.database import get_db
 from app.models.user import User
 from app.services.employee_workflow import employee,profile,clean_profile,validate_links,readiness,audit,activate,BASIC,bank_match
+from app.services import idempotency
 
 router=APIRouter()
 
@@ -20,20 +21,25 @@ def payload(db,eid):
 
 
 @router.post('/intimations',status_code=201)
-def create_intimation(data:dict,db:Session=Depends(get_db),user:User=Depends(require_employee_office)):
+def create_intimation(data:dict,db:Session=Depends(get_db),user:User=Depends(require_employee_office),
+                      idempotency_key: str | None = Header(default=None, alias='Idempotency-Key')):
     fields={'name','father_name','aadhaar_no','phone','client_id','branch'}
     if set(data)-fields: raise HTTPException(422,'Intimation accepts name, father name, Aadhaar, phone, client and company branch only.')
     p=clean_profile(data)
     missing=fields-{k for k,v in p.items() if v}
     if missing: raise HTTPException(422,'Complete intimation fields: '+', '.join(sorted(missing)))
+    replay, marker = idempotency.begin(db,user.id,'employee.intimation.create',idempotency_key,p)
+    if replay is not None: return replay
     validate_links(db,p)
     try:
         info=db.execute(text('insert into employee_intimations(name,father_name,aadhaar_no,phone,client_id,branch,created_by) values (:name,:father_name,:aadhaar_no,:phone,:client_id,:branch,:user) returning *'),{**p,'user':user.id}).mappings().one()
         row=db.execute(text("insert into employees(name,father_name,aadhaar_no,phone,client_id,branch,intimation_id,status) values (:name,:father_name,:aadhaar_no,:phone,:client_id,:branch,:iid,'DRAFT') returning *"),{**p,'iid':info['intimation_id']}).mappings().one()
         db.execute(text("insert into employee_joining_drafts(intimation_id,employee_id,created_by) values (:iid,:eid,:user)"),{'iid':str(info['id']),'eid':str(row['id']),'user':user.id})
         audit(db,row['id'],user,'INTIMATION',1,{'intimation_id':info['intimation_id']})
+        response = payload(db,row['id'])
+        idempotency.save(db,marker,response)
         db.commit()
-        return payload(db,row['id'])
+        return response
     except IntegrityError:
         db.rollback();raise HTTPException(409,'An employee with this Aadhaar or mobile number already exists. Open the existing employee file.')
 
@@ -122,7 +128,11 @@ def list_approvals(db:Session=Depends(get_db),user=Depends(require_employee_offi
 
 
 @router.post('/approvals/{approval_id}/decision')
-def decide(approval_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(require_employee_office)):
+def decide(approval_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(require_employee_office),
+           idempotency_key: str | None = Header(default=None, alias='Idempotency-Key')):
+    replay, marker = idempotency.begin(db,user.id,'employee.approval.decision',idempotency_key,
+                                       {'approval_id':str(approval_id),'decision':data})
+    if replay is not None: return replay
     # Match document mutations' employee-first lock order; concurrent decisions cannot activate twice.
     target=db.execute(text('select employee_id from employee_approval_requests where id=:id'),{'id':str(approval_id)}).first()
     if not target: raise HTTPException(404,'Approval request not found.')
@@ -149,7 +159,9 @@ def decide(approval_id:UUID,data:dict,db:Session=Depends(get_db),user=Depends(re
         next_user=db.get(User,chain[index+1]['assigned_to'])
         if not next_user or not next_user.is_active or not has_permission(db,next_user,'employees.approve'): raise HTTPException(409,'Next assigned approver is unavailable. Owner can return the file for resubmission.')
         add_request(db,row['id'],user,chain,index+1);audit(db,row['id'],user,'APPROVE_STEP',row['version'],{'remarks':remarks,'step':index})
-    db.commit();return {'status':decision,'employee_id':str(row['id']),'final':decision=='APPROVE' and index==len(chain)-1}
+    response={'status':decision,'employee_id':str(row['id']),'final':decision=='APPROVE' and index==len(chain)-1}
+    idempotency.save(db,marker,response)
+    db.commit();return response
 
 
 @router.get('/approval-categories')

@@ -150,7 +150,7 @@ def change_password(payload: ChangePasswordRequest, current_user: User = Depends
     if len(payload.new_password.encode('utf-8')) > 72:
         raise HTTPException(status_code=400, detail='Password must be at most 72 UTF-8 bytes.')
     if settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY:
-        if not provision_supabase_password_user(email=current_user.email, password=payload.new_password):
+        if not provision_supabase_password_user(email=current_user.email, password=payload.new_password, allow_existing_update=True):
             raise HTTPException(status_code=502, detail='Password synchronization failed. Please retry.')
     return crud_user.update(db, db_obj=current_user, obj_in={
         'password': payload.new_password,

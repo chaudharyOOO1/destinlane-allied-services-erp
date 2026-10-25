@@ -103,7 +103,7 @@ def create_user(
         raise HTTPException(409, 'Unable to create the account. Check for duplicate account details.') from None
 
 
-def prepare_user(db, user_in, current_user):
+def prepare_user(db, user_in, current_user, auth_recovery_marker=None):
     """Create and audit an account within the caller's database transaction."""
     if user_in.login_id and user_in.login_id.startswith(('DASS','S-DAS-')) and current_user.role not in {UserRole.OWNER,UserRole.SUPER_ADMIN,UserRole.HR}:
         raise HTTPException(403,'Only Management, IT Super Admin or HR can create staff logins.')
@@ -111,7 +111,7 @@ def prepare_user(db, user_in, current_user):
     if user_in.role in ADMIN_ROLES and current_user.role not in {UserRole.OWNER,UserRole.SUPER_ADMIN}:
         raise HTTPException(403,'Only Management or IT Super Admin can create administrator accounts.')
     assert_unique(db,user_in.model_dump())
-    auth_user = provision_supabase_password_user(email=user_in.email, password=user_in.password)
+    auth_user = provision_supabase_password_user(email=user_in.email, password=user_in.password, recovery_marker=auth_recovery_marker)
     if not auth_user and not (settings.ALLOW_LOCAL_PASSWORD_FALLBACK and not settings.SUPABASE_URL):
         raise HTTPException(502, "Supabase Auth account provisioning failed.")
     data=user_in.model_dump(exclude={'password'})
@@ -176,7 +176,7 @@ def update_user(
             raise HTTPException(409,'Reactivate the staff record before enabling its ERP account.')
     assert_unique(db,update_dict,db_user.id)
     if "password" in update_dict:
-        auth_user = provision_supabase_password_user(email=db_user.email, password=update_dict["password"])
+        auth_user = provision_supabase_password_user(email=db_user.email, password=update_dict["password"], allow_existing_update=True)
         if not auth_user:
             raise HTTPException(502, "Supabase Auth password synchronization failed.")
 
@@ -214,7 +214,7 @@ def reset_password(
     assert_staff_account_manager(db,current_user,db_user)
     _assert_manage_target(current_user, db_user)
 
-    auth_user = provision_supabase_password_user(email=db_user.email, password=data.new_password)
+    auth_user = provision_supabase_password_user(email=db_user.email, password=data.new_password, allow_existing_update=True)
     if not auth_user:
         raise HTTPException(502, "Supabase Auth password synchronization failed.")
 

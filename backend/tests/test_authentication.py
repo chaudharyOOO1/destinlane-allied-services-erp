@@ -135,7 +135,7 @@ def test_self_password_change_synchronizes_provider_before_local_password(client
     token = http.post('/api/v1/auth/login', json={'login_id': 'ADMIN-001', 'password': 'test-password-before'}).json()['access_token']
     response = http.post('/api/v1/auth/change-password', headers={'Authorization': f'Bearer {token}'}, json={'current_password': 'test-password-before', 'new_password': 'test-password-after'})
     assert response.status_code == (200 if provider_success else 502)
-    assert calls == [{'email': 'admin@destinlane.in', 'password': 'test-password-after'}]
+    assert calls == [{'email': 'admin@destinlane.in', 'password': 'test-password-after', 'allow_existing_update': True}]
     working_password = 'test-password-after' if provider_success else 'test-password-before'
     assert http.post('/api/v1/auth/login', json={'login_id': 'ADMIN-001', 'password': working_password}).status_code == 200
 

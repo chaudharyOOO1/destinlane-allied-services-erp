@@ -78,6 +78,10 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Safe-retry browser request regression
+        run: npm run test:idempotency
+      - name: Safe-retry real browser Axios regression
+        run: npm run test:idempotency-browser
       - name: Staff save browser regression (simulated API)
         run: npm run test:staff-save
       - name: Travel expenses browser workflow (simulated API)

@@ -6,7 +6,10 @@
       "framework": "vite",
       "outputDirectory": "dist",
       "rewrites": [
-        { "source": "/(.*)", "destination": "/index.html" }
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
       ]
     },
     "backend": {
@@ -19,15 +22,48 @@
       "framework": "vite",
       "outputDirectory": "dist",
       "rewrites": [
-        { "source": "/(.*)", "destination": "/index.html" }
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
       ]
     }
   },
   "rewrites": [
-    { "source": "/api", "destination": { "service": "backend" } },
-    { "source": "/api/(.*)", "destination": { "service": "backend" } },
-    { "source": "/employee", "destination": { "service": "employee-app" } },
-    { "source": "/employee/(.*)", "destination": { "service": "employee-app" } },
-    { "source": "/(.*)", "destination": { "service": "frontend" } }
-  ]
+    {
+      "source": "/api",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/employee",
+      "destination": {
+        "service": "employee-app"
+      }
+    },
+    {
+      "source": "/employee/(.*)",
+      "destination": {
+        "service": "employee-app"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    }
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "qa/retry-release-20261025": false
+    }
+  }
 }

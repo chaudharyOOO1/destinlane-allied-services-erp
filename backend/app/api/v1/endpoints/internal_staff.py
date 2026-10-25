@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import re
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlalchemy import update, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from app.models.company import CompanySettings
 from app.schemas.internal_staff import StaffCreate, StaffUpdate, StaffAction, StaffProfile, StaffLoginCreate, StaffAccessUpdate, ApprovalSettingUpdate
 from app.schemas.user import UserCreate
 from app.api.v1.endpoints import users as accounts
+from app.services import idempotency
 
 router = APIRouter()
 MANAGERS = {UserRole.OWNER, UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.HR, UserRole.OPERATIONS, UserRole.ACCOUNTS}
@@ -149,7 +150,7 @@ def code_check(code: str = Query(..., max_length=30), db: Session = Depends(get_
     return {'code':code,'valid_format':valid,'registered':row is not None,'status':row.status if row else None}
 
 
-def create_login(db, row, data, user):
+def create_login(db, row, data, user, auth_recovery_marker=None):
     email = row.profile.get('email')
     if not email: raise HTTPException(422,'Staff email is required for ERP login.')
     if data.role not in MANAGERS: raise HTTPException(422,'Choose an internal office role for this staff login.')
@@ -158,7 +159,7 @@ def create_login(db, row, data, user):
             raise HTTPException(422,'A selected working permission is unavailable for this role.')
     account = accounts.prepare_user(db,UserCreate(email=email,login_id=row.staff_code,
         full_name=row.name,phone_number=row.phone,role=data.role,
-        password=data.temporary_password.get_secret_value()),user)
+        password=data.temporary_password.get_secret_value()),user,auth_recovery_marker=auth_recovery_marker)
     for key, allowed in data.permissions.items():
         db.execute(text('insert into public.user_permissions(user_id,permission_key,allowed) values(:user,:key,:allowed)'),
                    {'user':account.id,'key':key,'allowed':allowed})
@@ -167,8 +168,13 @@ def create_login(db, row, data, user):
 
 
 @router.post('', status_code=201)
-def create_staff(data: StaffCreate, db: Session = Depends(get_db), user=Depends(internal_access)):
+def create_staff(data: StaffCreate, db: Session = Depends(get_db), user=Depends(internal_access),
+                 idempotency_key: str | None = Header(default=None, alias='Idempotency-Key')):
     require_staff_administrator(user)
+    request_data = data.model_dump(mode='json')
+    request_data['account']['temporary_password'] = data.account.temporary_password.get_secret_value()
+    replay, marker = idempotency.begin(db,user.id,'internal_staff.create',idempotency_key,request_data)
+    if replay is not None: return replay
     validate_branch(db,data.profile)
     if db.query(InternalStaff).filter_by(phone=data.profile.phone).first(): raise HTTPException(409, 'This phone number is already registered.')
     number = db.execute(update(StaffCodeCounter).where(StaffCodeCounter.id == 1).values(next_number=StaffCodeCounter.next_number+1).returning(StaffCodeCounter.next_number)).scalar_one_or_none()
@@ -179,9 +185,10 @@ def create_staff(data: StaffCreate, db: Session = Depends(get_db), user=Depends(
     db.add(row)
     try:
         db.flush()
-        create_login(db,row,data.account,user)
+        create_login(db,row,data.account,user,auth_recovery_marker=idempotency.auth_recovery_marker(marker))
         record(db,row,user,'CREATE')
         response = with_account(db,row)
+        idempotency.save(db,marker,response)
         commit(db)
     except IntegrityError:
         db.rollback()
