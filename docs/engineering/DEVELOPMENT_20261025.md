@@ -55,3 +55,7 @@ Validation and live deployment evidence are appended below after execution. No w
 - New wage/pay/audit tables have RLS enabled and anon/authenticated SELECT denied. No production business salaries or accounting entries were inserted.
 
 All seven office Chromium suites passed: 24 cases in total (dashboard, staff saves, travel, MD books, everyday money, module saves and payroll/access). Application deployment evidence will be recorded after verification.
+
+### Release follow-up
+
+GitHub's npm 10 clean install exposed missing optional chokidar/readdirp records in the npm 11-generated employee lockfile. Regenerated with npm 10; both installer versions must accept it. The live employee JavaScript URL also returned HTML because the service retained the /employee prefix when resolving static assets. Added an explicit employee asset rewrite before the SPA fallback; verify actual JavaScript/CSS MIME and content on the live domain after deployment. These findings are not covered by an HTTP-200 page check.
