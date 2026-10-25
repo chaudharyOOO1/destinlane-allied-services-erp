@@ -59,3 +59,16 @@ All seven office Chromium suites passed: 24 cases in total (dashboard, staff sav
 ### Release follow-up
 
 GitHub's npm 10 clean install exposed missing optional chokidar/readdirp records in the npm 11-generated employee lockfile. Regenerated with npm 10; both installer versions must accept it. The live employee JavaScript URL also returned HTML because the service retained the /employee prefix when resolving static assets. Added an explicit employee asset rewrite before the SPA fallback; verify actual JavaScript/CSS MIME and content on the live domain after deployment. These findings are not covered by an HTTP-200 page check.
+
+### Native employee build follow-up
+
+- Web stays under /employee and uses same-origin API requests. Installed apps use a local hash router, relative bundled assets and the explicit HTTPS ERP API. VITE_ERP_API_BASE_URL can select another HTTPS backend for a native build; no credentials/query tokens belong in this public setting.
+- Capacitor core, Android, CLI and geolocation are now declared/locked dependencies. Native builds request precise location through the native plugin; generated Android projects declare camera/fine/coarse location permissions.
+- Added a checked-in Capacitor config and reproducible Android-generation script. The legacy application identifier is retained for upgrade compatibility; the display name/artifact uses DestinLane.
+- Three runtime-configuration tests passed. Native-origin CORS and authentication tests passed (26 focused backend cases). CORS permits the two explicit native local origins; authentication/ownership checks still return 401 without a session.
+- Generated an isolated Android project, synchronized plugins and verified permission declarations and relative packaged asset paths. Removed the generated project after verification. APK compilation/physical-device behaviour are separate checks.
+- Removed broken favicon/PWA-manifest links pending actual branded assets. Management will supply the approved PNG; do not recreate the logo.
+- User Management displays configured permissions for inactive accounts, allowing access planning without incorrectly showing every grant as denied.
+- scripts/verify_public_routes.py now checks actual JS/CSS content types and rejects SPA HTML at asset URLs, as well as anonymous API access.
+
+The d79fef4 release passed all five GitHub workflows, including the Android build. Its employee JavaScript is served as application/javascript on the live domain. The native follow-up requires its own matching deployment/CI checks.

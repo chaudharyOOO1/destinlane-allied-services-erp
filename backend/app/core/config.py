@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     MD_ACCOUNTING_USER_ID: int | None = None
     EMPLOYEE_DOCUMENT_BUCKET: str = "employee-documents"
 
+    EMPLOYEE_NATIVE_ORIGINS: List[str] = ['https://localhost', 'capacitor://localhost']
+
     BACKEND_CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:3000",
         "http://localhost:5173",

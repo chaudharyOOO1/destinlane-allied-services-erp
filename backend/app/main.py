@@ -71,10 +71,12 @@ async def database_error(request: Request, exc: SQLAlchemyError):
         "error_id": error_id,
     })
 
-if settings.BACKEND_CORS_ORIGINS:
+# Native webviews use local origins. Bearer/PIN and ownership checks remain
+# authoritative; this explicit allowlist does not grant application access.
+if settings.BACKEND_CORS_ORIGINS or settings.EMPLOYEE_NATIVE_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.BACKEND_CORS_ORIGINS,
+        allow_origins=list(dict.fromkeys([*settings.BACKEND_CORS_ORIGINS, *settings.EMPLOYEE_NATIVE_ORIGINS])),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "Accept"],

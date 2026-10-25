@@ -26,3 +26,7 @@ Employees sign in to `/employee`. Documents displays verified files through shor
 Open User Management and select an account. Use the departmental role for standard access. Expand Custom permissions only for exceptions. Toggle the required actions, then select Save access once. Unsaved changes are labelled. Reload saved access discards local permission edits. If someone else changed the account, reload and review before saving again.
 
 Creating an account is collapsed under Create account. For internal staff, use Staff Master so the DASS ID and ERP login remain linked. New/reset users change their temporary password on first sign-in. Five failed office sign-ins lock that account for fifteen minutes.
+
+## Installed employee app
+
+The web portal uses /employee. The Android package uses the same ERP backend over HTTPS, with local navigation and native camera/location permissions. Allow precise location when recording attendance. Actual camera/GPS/device acceptance must still be performed on a physical phone before rollout.

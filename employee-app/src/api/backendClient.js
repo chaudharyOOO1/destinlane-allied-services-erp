@@ -1,4 +1,6 @@
-const API_BASE = '/api/v1';
+import { Capacitor } from '@capacitor/core';
+import { employeeRuntime } from '@/lib/runtimeConfig';
+const API_BASE = employeeRuntime(Capacitor.isNativePlatform(), import.meta.env.VITE_ERP_API_BASE_URL || '').apiBase;
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('emp_access_token');

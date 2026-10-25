@@ -30,6 +30,9 @@ jobs:
       - name: Install employee app dependencies
         working-directory: employee-app
         run: npm ci
+      - name: Employee runtime configuration checks
+        working-directory: employee-app
+        run: npm run test:runtime
       - name: Build employee app
         working-directory: employee-app
         run: npm run build

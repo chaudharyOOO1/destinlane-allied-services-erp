@@ -44,7 +44,9 @@ Use an isolated local PostgreSQL role with CREATEDB. The integration fixture cre
 
 Office frontend (from `frontend/`): `npm run lint`, `npm run build`, and the browser suites declared in `package.json`. Browser suites require Chromium and use mocked APIs.
 
-Employee portal (from `employee-app/`): `npm ci`, `npm run lint`, `npm run build`. Build emits `dist/` without replacing source assets in `public/`.
+Employee portal (from `employee-app/`): `npm ci`, `npm run test:runtime`, `npm run lint`, `npm run build`. Use `npm run build:native` for a Capacitor package; native bundles use relative assets and the HTTPS ERP API. Build emits `dist/` without replacing source assets in `public/`.
+
+Read-only public smoke check: `python scripts/verify_public_routes.py`. It validates real asset MIME/content and anonymous API denials.
 
 Local restore drill: `scripts/verify_local_restore.py`. It proves generated local dump/restore only. Production offsite backup retention and recovery require separate evidence.
 

@@ -3,7 +3,16 @@
  * to the assigned work site.
  */
 
-export function getCurrentPosition() {
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
+
+export async function getCurrentPosition() {
+  if (Capacitor.isNativePlatform()) {
+    const permission = await Geolocation.requestPermissions({permissions:['location']});
+    if (permission.location !== 'granted') throw new Error('Precise location permission is required for attendance.');
+    const position = await Geolocation.getCurrentPosition({enableHighAccuracy:true,timeout:15000,maximumAge:0});
+    return {lat:position.coords.latitude,lng:position.coords.longitude,accuracy:position.coords.accuracy};
+  }
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error("Geolocation not supported on this device"));

@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { mobileApi } from "@/api/backendClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, Loader2, Fingerprint, ArrowRight } from "lucide-react";
+import { Phone, Loader2, ArrowRight } from "lucide-react";
 import { setSession } from "@/lib/phoneSession";
 
 export default function PhoneLogin() {
@@ -45,13 +45,13 @@ export default function PhoneLogin() {
       >
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
-            <Fingerprint className="h-7 w-7" />
+            <span className="text-sm font-bold tracking-wide">DAS</span>
           </div>
           <h1 className="font-heading text-2xl font-semibold text-slate-900">
             DestinLane Allied Services
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            FAS · Employee Attendance — Login with your registered phone and employee PIN
+            DAS · Employee Attendance — Login with your registered phone and employee PIN
           </p>
         </div>
 
