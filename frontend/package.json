@@ -13,7 +13,9 @@
     "test:travel-expenses": "bash scripts/test-browser.sh travel-expenses",
     "test:md-everyday": "bash scripts/test-browser.sh md-everyday",
     "test:md-accounting": "bash scripts/test-browser.sh md-accounting",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:idempotency": "node --test tests/idempotency.node.test.mjs",
+    "test:idempotency-browser": "node --test tests/idempotency.browser.test.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

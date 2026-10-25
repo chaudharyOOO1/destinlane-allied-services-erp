@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import uuid4
 from zoneinfo import ZoneInfo
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -22,6 +22,7 @@ from app.models.user import User
 from app.models.travel_expense import TravelExpenseClaim as Claim, TravelExpenseReceipt as Receipt, TravelExpenseHistory as History
 from app.schemas.travel_expense import TravelClaimInput, TravelClaimUpdate, VersionInput, TravelDecision, TravelPayment
 from app.services import travel_storage as storage
+from app.services import idempotency
 
 router = APIRouter()
 
@@ -87,7 +88,7 @@ def detail(db, row):
     return result
 
 
-def finish(db, row, user, action, changes=None):
+def finish(db, row, user, action, changes=None, idempotency_token=None):
     if action != 'CREATE':
         row.version += 1
     db.add(History(claim_id=row.id, actor_id=user.id, action=action, version=row.version,
@@ -95,6 +96,7 @@ def finish(db, row, user, action, changes=None):
     try:
         db.flush()
         response = detail(db, row)
+        idempotency.save(db,idempotency_token,response)
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -177,7 +179,13 @@ def decide_claim(claim_id: int, data: TravelDecision, db: Session = Depends(get_
 
 
 @router.post('/{claim_id}/pay')
-def pay_claim(claim_id: int, data: TravelPayment, db: Session = Depends(get_db), user=Depends(travel_user)):
+def pay_claim(claim_id: int, data: TravelPayment, db: Session = Depends(get_db), user=Depends(travel_user),
+              idempotency_key: str | None = Header(default=None, alias='Idempotency-Key')):
+    # Preserve claim access control before replaying an earlier payment response.
+    get_claim(db, claim_id, user)
+    replay, marker = idempotency.begin(db,user.id,'travel.reimbursement.pay',idempotency_key,
+                                       {'claim_id':claim_id,'payment':data.model_dump(mode='json')})
+    if replay is not None: return replay
     row = get_claim(db, claim_id, user, data.version)
     if row.requester_id == user.id:
         raise HTTPException(403, 'Another authorised person must record your reimbursement.')
@@ -193,7 +201,8 @@ def pay_claim(claim_id: int, data: TravelPayment, db: Session = Depends(get_db),
          'amount': row.total_amount, 'date': data.payment_date})
     row.status, row.paid_by, row.payment_date = 'PAID', user.id, data.payment_date
     row.payment_reference, row.expense_id = data.payment_reference, expense_id
-    return finish(db, row, user, 'PAY', {'reference': data.payment_reference, 'expense_id': expense_id})
+    return finish(db, row, user, 'PAY', {'reference': data.payment_reference, 'expense_id': expense_id},
+                  idempotency_token=marker)
 
 
 @router.post('/{claim_id}/receipts', status_code=201)

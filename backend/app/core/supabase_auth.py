@@ -17,12 +17,23 @@ def _auth_headers() -> dict[str, str]:
     return {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
 
-def provision_supabase_password_user(*, email: str, password: str) -> dict[str, Any] | None:
+def provision_supabase_password_user(
+    *, email: str, password: str, recovery_marker: str | None = None,
+    allow_existing_update: bool = False,
+) -> dict[str, Any] | None:
+    """Create Auth identity or explicitly synchronize an existing account.
+
+    Creation retries can only take over a pre-existing remote identity if its
+    server-controlled app_metadata proves it came from that very retry token.
+    Explicit password changes have their own authenticated/authorized callers.
+    """
     headers = _auth_headers()
     if not headers:
         return None
 
     payload = {"email": email, "password": password, "email_confirm": True}
+    if recovery_marker:
+        payload["app_metadata"] = {"destinlane_recovery_marker": recovery_marker}
     create_request = urllib.request.Request(
         f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/admin/users",
         data=json.dumps(payload).encode("utf-8"),
@@ -38,6 +49,9 @@ def provision_supabase_password_user(*, email: str, password: str) -> dict[str, 
     except (urllib.error.URLError, TimeoutError, ValueError):
         return None
 
+    if not (allow_existing_update or recovery_marker):
+        return None
+
     list_request = urllib.request.Request(
         f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/admin/users?per_page=100&page=1",
         headers=headers,
@@ -49,7 +63,13 @@ def provision_supabase_password_user(*, email: str, password: str) -> dict[str, 
         auth_user = next((item for item in users.get("users", []) if item.get("email", "").lower() == email.lower()), None)
         if not auth_user:
             return None
+        if not allow_existing_update:
+            auth_metadata = auth_user.get("app_metadata")
+            if not isinstance(auth_metadata, dict) or auth_metadata.get("destinlane_recovery_marker") != recovery_marker:
+                return None
         user_id = auth_user.get("id")
+        if not user_id:
+            return None
         update_request = urllib.request.Request(
             f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/admin/users/{user_id}",
             data=json.dumps({"password": password, "email_confirm": True}).encode("utf-8"),
