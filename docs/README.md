@@ -1,5 +1,7 @@
 # Documentation index
 
+Current development ledger: [25 October 2026](engineering/DEVELOPMENT_20261025.md). New guides: [payroll and access](user-guides/PAYROLL_AND_ACCESS.md), [functional rules](functional/PAYROLL_AND_ACCESS_RELIABILITY.md).
+
 ## Start here
 
 - [Professional workspace functional rules](functional/PROFESSIONAL_WORKSPACE.md), [user guide](user-guides/ERP_WORKSPACE.md), [release/handover](engineering/PROFESSIONAL_ERP_RELEASE.md) and [branding](engineering/BRANDING.md).

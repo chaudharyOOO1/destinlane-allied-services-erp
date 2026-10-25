@@ -26,7 +26,7 @@ jobs:
       - name: Install employee app dependencies
         working-directory: employee-app
         run: |
-          npm install
+          npm ci
           npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/camera
       - name: Initialize Capacitor and build
         working-directory: employee-app

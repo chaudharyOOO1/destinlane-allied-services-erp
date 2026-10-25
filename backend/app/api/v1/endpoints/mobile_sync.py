@@ -41,11 +41,16 @@ def get_mobile_employee(token:str=Depends(mobile_oauth),db:Session=Depends(get_d
 
 def personal(db,employee):
     result={k:v for k,v in dict(employee).items() if k!='session_version'}
+    details = rules.row(db, """select joining_date as doj,dob,father_name,
+        coalesce(present_address,permanent_address) address
+        from employees where id=:id""", {'id':str(employee['id'])})
+    if details: result.update(dict(details))
     # An overnight open shift takes precedence over today's new assignment.
     site=rules.row(db,"""select r.id roster_id,r.date roster_date,r.shift_type,s.site_name,s.address site_address,s.latitude site_latitude,s.longitude site_longitude,coalesce(s.geofence_radius_meters,100) geofence_radius from shift_rosters r join guard_profiles g on g.id=r.guard_id join sites s on s.id=r.site_id left join attendance a on a.roster_id=r.id where g.employee_id=:id and r.status='SCHEDULED' and (r.date=:today or (a.check_in_time is not null and a.check_out_time is null)) order by case when a.check_in_time is not null then 0 else 1 end,r.date limit 1""",{'id':str(employee['id']),'today':rules.business_date()})
     if site:result.update(dict(site))
     else:
         result.update({'roster_id':None,'site_name':None,'site_latitude':None,'site_longitude':None})
+    result['assigned_site'] = result.get('site_name')
     return result
 
 @router.post('/login')
@@ -93,10 +98,47 @@ def mobile_me(employee=Depends(get_mobile_employee),db:Session=Depends(get_db)):
 @router.get('/mobile/me/attendance',include_in_schema=False)
 def mobile_attendance(employee=Depends(get_mobile_employee),db:Session=Depends(get_db)):
     return [rules.public(r) for r in db.execute(text('''select a.*,r.shift_type,r.date roster_date,s.site_name from attendance a left join shift_rosters r on r.id=a.roster_id left join sites s on s.id=r.site_id where a.employee_id=:employee order by a.attendance_date desc limit 100'''),{'employee':str(employee['id'])}).mappings().all()]
+@router.get('/me/documents')
+def mobile_documents(employee=Depends(get_mobile_employee),db:Session=Depends(get_db)):
+    # Private storage paths never leave this endpoint. A URL is issued only
+    # after matching the authenticated employee and document verification.
+    rows = db.execute(text("""select id,document_type,original_filename,storage_path
+        from employee_documents where employee_id=:employee
+        and verification_status='VERIFIED' order by created_at desc"""),
+        {'employee':str(employee['id'])}).mappings().all()
+    result=[]
+    for row in rows:
+        url=create_supabase_signed_url(bucket='employee-documents',path=row['storage_path'],expires_in=300)
+        if not url: raise HTTPException(503,'Document storage is temporarily unavailable. Please retry.')
+        result.append({'id':row['id'],'name':row['original_filename'] or row['document_type'],'url':url})
+    return result
+
 @router.get('/me/salary')
 @router.get('/mobile/me/salary',include_in_schema=False)
 def mobile_salary(employee=Depends(get_mobile_employee),db:Session=Depends(get_db)):
-    return [dict(r) for r in db.execute(text('select id,employee_id,month,status,credited_date from salary_records where employee_id=:employee order by month desc limit 24'),{'employee':str(employee['id'])}).mappings().all()]
+    return [dict(r) for r in db.execute(text("""select ss.id,ss.employee_id,
+        to_char(pr.payroll_month,'YYYY-MM') as "month", ss.net_pay amount,
+        ss.lifecycle_status,
+        case when upper(ss.lifecycle_status) in ('DISBURSED','PAID') then 'credited' else 'pending' end status
+        from salary_slips ss join payroll_runs pr on pr.id=ss.payroll_run_id
+        where ss.employee_id=:employee
+        and upper(ss.lifecycle_status) in ('APPROVED','DISBURSED','PAID')
+        order by pr.payroll_month desc limit 24"""),
+        {'employee':str(employee['id'])}).mappings().all()]
+
+@router.get('/me/salary/{slip_id}/pdf')
+def mobile_salary_pdf(slip_id:int, employee=Depends(get_mobile_employee), db:Session=Depends(get_db)):
+    from app.api.v1.endpoints.payroll import render_salary_slip
+    record = db.execute(text("""select ss.*,e.employee_code,e.name,e.category,pr.payroll_month
+        from salary_slips ss join employees e on e.id=ss.employee_id
+        join payroll_runs pr on pr.id=ss.payroll_run_id
+        where ss.id=:id and ss.employee_id=:employee
+        and upper(ss.lifecycle_status) in ('APPROVED','DISBURSED','PAID')"""),
+        {'id':slip_id,'employee':str(employee['id'])}).mappings().first()
+    if not record:
+        raise HTTPException(404,'Salary slip not found')
+    return render_salary_slip(db,record)
+
 @router.post('/punch')
 @router.post('/mobile/punch',include_in_schema=False)
 def mobile_punch(payload:MobilePunchRequest,employee=Depends(get_mobile_employee),db:Session=Depends(get_db)):

@@ -26,7 +26,7 @@ export default function AttendanceCalendar({ records }) {
   const recordsByDate = useMemo(() => {
     const map = {};
     (records || []).forEach((r) => {
-      if (r.date) map[r.date] = r;
+      if (r.attendance_date) map[r.attendance_date] = r;
     });
     return map;
   }, [records]);

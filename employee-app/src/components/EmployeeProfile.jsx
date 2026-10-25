@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   BadgeCheck,
@@ -12,7 +12,7 @@ import {
   User,
   X,
 } from "lucide-react";
-import { supabase } from "@/api/supabaseClient";
+import { mobileApi } from "@/api/backendClient";
 
 function InfoRow({ icon: Icon, label, value }) {
   return (
@@ -37,36 +37,17 @@ function formatDate(d) {
   });
 }
 
-const documentLabels = {
-  form_11: "Form 11",
-  form_11a: "Form 11A",
-  police_verification: "Police Verification",
-  esic_form: "ESIC Form",
-};
-
 export default function EmployeeProfile({ employee }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [section, setSection] = useState("personal");
   const [documents, setDocuments] = useState([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [documentsError, setDocumentsError] = useState("");
 
   const shift =
     employee.shift_start && employee.shift_end
       ? `${employee.shift_start} – ${employee.shift_end}`
       : null;
-
-  const employeeFieldDocuments = useMemo(() => {
-    return Object.entries(documentLabels)
-      .map(([key, label]) => {
-        const url =
-          employee?.[`${key}_url`] ||
-          employee?.[`${key}_document_url`] ||
-          employee?.[`${key}_document`];
-
-        return url ? { id: key, name: label, url } : null;
-      })
-      .filter(Boolean);
-  }, [employee]);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,35 +55,12 @@ export default function EmployeeProfile({ employee }) {
     const loadDocuments = async () => {
       setDocumentsLoading(true);
 
+      setDocumentsError('');
       try {
-        // Preferred backend model: employee_documents table.
-        // If it is not present yet, we silently fall back to document URL
-        // fields on the employee record.
-        const { data, error } = await supabase
-          .from("employee_documents")
-          .select("*")
-          .eq("employee_id", employee.id)
-          .order("created_at", { ascending: false });
-
-        if (!error && !cancelled) {
-          const mapped = (data || [])
-            .map((doc) => ({
-              id: doc.id,
-              name:
-                doc.name ||
-                documentLabels[doc.document_type] ||
-                doc.document_type ||
-                "Document",
-              url: doc.file_url || doc.url || doc.public_url,
-            }))
-            .filter((doc) => doc.url);
-
-          setDocuments(mapped);
-        } else if (!cancelled) {
-          setDocuments(employeeFieldDocuments);
-        }
-      } catch {
-        if (!cancelled) setDocuments(employeeFieldDocuments);
+        const data = await mobileApi.documents();
+        if (!cancelled) setDocuments(data || []);
+      } catch (error) {
+        if (!cancelled) { setDocuments([]); setDocumentsError(error.message || 'Unable to load documents. Please retry.'); }
       } finally {
         if (!cancelled) setDocumentsLoading(false);
       }
@@ -115,7 +73,7 @@ export default function EmployeeProfile({ employee }) {
     return () => {
       cancelled = true;
     };
-  }, [employee, employeeFieldDocuments, section]);
+  }, [employee.id, section]);
 
   return (
     <motion.div
@@ -207,6 +165,7 @@ export default function EmployeeProfile({ employee }) {
             </button>
           </div>
 
+          {documentsError && <p role="alert" className="mb-3 text-sm text-red-700">{documentsError}</p>}
           {documentsLoading ? (
             <div className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
               Loading documents…

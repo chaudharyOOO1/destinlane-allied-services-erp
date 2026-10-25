@@ -49,6 +49,7 @@ class Database:
           create unique index one_pending on employee_approval_requests(employee_id) where status='PENDING';
           create table employee_approval_categories(id integer primary key,category_name text,task_type text,is_active boolean,approver_user_id integer,is_final_approver boolean,sequence_order integer,updated_at text);
           create table employee_history(id integer primary key,employee_id text,changed_by integer,action text,version integer,details text,created_at text default(now()));
+          create table recruitment_candidates(employee_id text,status text,onboarded_at text,updated_at text);
           create table clients(id integer primary key,is_active boolean,company_name text);
           create table sites(id integer primary key,is_active boolean,client_id integer,branch text,site_name text);
           create table ifsc_master(ifsc_code text,bank_name text,branch_name text,approved boolean);

@@ -1,5 +1,7 @@
 # Action plan
 
+Current status (25 October 2026): see the [development and readiness ledger](engineering/DEVELOPMENT_20261025.md). The dated sections below describe earlier snapshots.
+
 Updated: 18 October 2026. Baseline source: `d2fc92f`. Current work is local and has not been deployed.
 
 ## Direction

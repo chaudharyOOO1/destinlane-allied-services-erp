@@ -42,6 +42,7 @@ def permission_supported(role: str, key: str) -> bool:
         if action == 'approve': return role in {'OWNER','SUPER_ADMIN','HR'}
         if action == 'pay': return role in {'OWNER','SUPER_ADMIN','ACCOUNTS'}
         return action in {'view','create','edit'}
+    if module == 'payroll' and action == 'pay': return role in {'OWNER','SUPER_ADMIN','ADMIN','ACCOUNTS'}
     if action == 'pay': return False
     if module=='staff' and action in {'create','edit','approve'}: return role in {'OWNER','SUPER_ADMIN','HR'}
     if module=='attendance' and role=='STAFF': return action in {'view','create'}

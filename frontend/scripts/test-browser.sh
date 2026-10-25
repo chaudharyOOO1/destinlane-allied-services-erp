@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 suite="${1:-staff-save}"
-case "$suite" in staff-save|travel-expenses|md-accounting|md-everyday|dashboard|module-workflows) ;; *) echo "Unknown browser suite" >&2; exit 1;; esac
+case "$suite" in staff-save|travel-expenses|md-accounting|md-everyday|dashboard|module-workflows|payroll-access) ;; *) echo "Unknown browser suite" >&2; exit 1;; esac
 
 browser="${BROWSER_EXECUTABLE_PATH:-}"
 if [ -z "$browser" ]; then

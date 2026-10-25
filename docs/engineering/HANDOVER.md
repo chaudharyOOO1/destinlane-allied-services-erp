@@ -1,5 +1,7 @@
 # Developer handover
 
+Current status (25 October 2026): see the [development and readiness ledger](DEVELOPMENT_20261025.md). The dated sections below describe earlier snapshots.
+
 Updated: 19 October 2026. Start with [action plan](../ACTION_PLAN.md) and [audit](AUDIT.md). No prior chat history is required to continue this work.
 
 ## Architecture and entry points

@@ -47,6 +47,9 @@ def _request_permission(request: Request) -> str | None:
         if path.endswith('/export'): return 'md_accounting.export'
         if path.endswith('/calculate'): return 'md_accounting.view'
         if path.endswith('/match') or path.endswith('/unmatch'): return 'md_accounting.edit'
+    if module == 'payroll':
+        if path.endswith('/decision'): return 'payroll.approve'
+        if path.endswith('/pay'): return 'payroll.pay'
     if module == 'travel_expenses':
         if path.endswith('/decision'): return 'travel_expenses.approve'
         if path.endswith('/pay'): return 'travel_expenses.pay'

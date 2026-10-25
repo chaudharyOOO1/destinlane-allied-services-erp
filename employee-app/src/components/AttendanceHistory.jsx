@@ -76,7 +76,7 @@ export default function AttendanceHistory({ records }) {
                 )}
 
                 <div className="flex w-20 shrink-0 flex-col">
-                  <span className="text-sm font-semibold text-slate-900">{fmtDate(r.date)}</span>
+                  <span className="text-sm font-semibold text-slate-900">{fmtDate(r.attendance_date)}</span>
                 </div>
 
                 <div className="flex flex-1 items-center gap-4 text-sm text-slate-600">

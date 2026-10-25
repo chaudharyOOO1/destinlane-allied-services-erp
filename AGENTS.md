@@ -1,119 +1,53 @@
-# Security & Facility Management ERP
-Path: D:\Clients_works\security_erp
+# DestinLane ERP contributor guide
 
-## Stack Specifications
-- Backend: Python FastAPI in `/backend`, PostgreSQL database, SQLAlchemy ORM, JWT Auth.
-- Frontend: React (Vite) in `/frontend`, Tailwind CSS, Axios.
+## Current architecture
 
-## Core Database Schema
-1. User: id, username, email, password_hash, role (ADMIN, CLIENT, STAFF)
-2. Client: id, company_name, contact_person, email, phone
-3. Site: id, client_id, site_name, address, shift_requirements
-4. GuardProfile: id, user_id, full_name, phone, daily_rate, status
-5. ShiftRoster: id, site_id, guard_id, date, shift_type (DAY/NIGHT)
-6. Attendance: id, roster_id, status (PRESENT, ABSENT, OVERTIME), overtime_hours
-7. Invoice: id, client_id, month, total_amount, status (DRAFT, PAID)
+- `backend/`: FastAPI, SQLAlchemy, PostgreSQL. API registration: `app/api/v1/api.py`.
+- `frontend/`: React office ERP, Vite. Routes: `src/App.jsx`.
+- `employee-app/`: separate React employee portal at `/employee`; phone/PIN sessions use the ERP backend.
+- Hosting: Vercel and Supabase. Oracle is abandoned. Gmail integration is deferred.
+- Roles displayed to users: IT Super Admin, Management, HR, Staff, Employee. Stored role values are compatibility identifiers; see `frontend/src/utils/roleLabels.js`.
+- Internal staff (`internal_staff`, DASS IDs) and deployed employees (`employees`, DASE IDs) are different populations. Never infer one from the other.
 
-## Frontend Pages
-| Page | Status | API Integration |
-|------|--------|----------------|
-| Dashboard | ✅ Complete | - |
-| Personnel | ✅ Complete | `GET /api/v1/guards/` |
-| ClientsView | ✅ Complete | `GET /api/v1/clients/` |
-| RosterView | ✅ Complete | `GET /api/v1/guards/` (with rosters) |
-| AttendanceView | ✅ Complete | `GET /api/v1/attendance/` |
-| InvoicesView | ✅ Complete | `GET /api/v1/invoices/` |
-| Login | ✅ Complete | - |
+## Workflow rules
 
-## Routing
-- `/dashboard` - Dashboard view
-- `/personnel` - Guard Personnel view
-- `/clients` - ClientsView (manage client companies)
-- `/rosters` - RosterView (shift assignments)
-- `/attendance` - AttendanceView (attendance records)
-- `/billing` - InvoicesView (billing/invoices)
-- `/login` - Login page
+- Only Management, IT Super Admin and HR create staff and their ERP login. Temporary passwords require a change on first sign-in.
+- Employee activation requires the joining/document approval workflow. Recruitment must not bypass it.
+- Internal staff remuneration is proposed per branch/month and requires Management approval every month. Active staff records do not generate salary. Staff remuneration is separate from employee attendance payroll.
+- Employee wage rates are effective-dated and independent of client billing rates. Never silently calculate worked attendance at zero wages.
+- Approved/disbursed payroll cannot be recalculated. Correct through an explicit reviewed adjustment workflow.
+- A saved invoice, salary proposal or payment reference is not proof of a bank transfer. Do not fabricate collections or automatically duplicate operational entries in the MD books.
+- MD accounting is restricted to the configured individual account, even for other privileged users.
+- The discussed ₹100,000 remains intended personal capital until actual contribution. Do not create that financial entry from conversation history.
 
-## Backend API Endpoints (all operational)
-### Authentication
-- `POST /api/v1/auth/login` - JSON login
-- `POST /api/v1/auth/login/access-token` - OAuth2 form login
-- `GET /api/v1/auth/me` - Current user profile
+## Development and review
 
-### Clients
-- `GET /api/v1/clients/` - List clients
-- `POST /api/v1/clients/` - Create client (Admin only)
-- `GET /api/v1/clients/{client_id}` - Get client by ID
-- `PUT /api/v1/clients/{client_id}` - Update client (Admin only)
-- `DELETE /api/v1/clients/{client_id}` - Delete client (Admin only)
-- `GET /api/v1/clients/{client_id}/sites` - Get client's sites
-- `GET /api/v1/clients/{client_id}/invoices` - Get client's invoices
+1. Read the relevant current functional and user guides in `docs/` before changing a workflow.
+2. Keep migrations additive. Add matching Alembic and Supabase SQL files; test fresh bootstrap and repeated upgrade. Retain history and audit records.
+3. `get_db()` closes sessions; it does not commit. Every successful mutation must commit before acknowledging success. Validate whole commands before writes.
+4. Treat mutation responses as authoritative. A follow-up read failure must not report a successful save as failed or leave a duplicate submission ready.
+5. Enforce role and action permissions on the server. Navigation visibility alone is insufficient. Private file URLs must be short-lived and ownership-checked.
+6. Preserve draft edits on failed saves; reject stale versions/revisions. Serialize conflicting financial writes. Use Decimal for money.
+7. Use generated local data for tests, never production fake clients, employees, attendance or money. Empty live business tables are expected for this new company.
+8. Do not expose tokens, passwords, database URLs or personal documents in output, commits or browser fixtures.
+9. Record what changed, why, validation, deployment evidence, known gaps and recovery steps in `docs/engineering/`.
 
-### Guards
-- `GET /api/v1/guards/` - List guard profiles
-- `POST /api/v1/guards/` - Create guard profile (Admin only)
-- `GET /api/v1/guards/{guard_id}` - Get guard by ID
-- `PUT /api/v1/guards/{guard_id}` - Update guard (Admin only)
-- `DELETE /api/v1/guards/{guard_id}` - Delete guard (Admin only)
-- `GET /api/v1/guards/{guard_id}/rosters` - Get guard's rosters
+## Verification
 
-### Rosters
-- `GET /api/v1/rosters/` - List rosters (scoped by role)
-- `POST /api/v1/rosters/` - Create individual roster (Admin only)
-- `POST /api/v1/rosters/weekly` - Batch assign weekly roster (Admin only)
+Backend (from `backend/`):
 
-### Attendance
-- `GET /api/v1/attendances/` - List attendance records (scoped by role)
-- `POST /api/v1/attendances/` - Record individual attendance (Staff only)
-- `POST /api/v1/attendances/bulk` - Mark bulk attendance (Admin/Staff only)
+```sh
+TEST_POSTGRES_ADMIN_URL=postgresql+psycopg://agent@127.0.0.1:5432/postgres .venv/bin/python -m pytest tests -q
+```
 
-### Invoices
-- `GET /api/v1/invoices/` - List invoices (scoped by role)
-- `POST /api/v1/invoices/` - Create invoice (Admin only)
-- `GET /api/v1/invoices/{invoice_id}` - Get invoice by ID
-- `PUT /api/v1/invoices/{invoice_id}` - Update invoice (Admin only)
-- `DELETE /api/v1/invoices/{invoice_id}` - Delete invoice (Admin only)
-- `POST /api/v1/billing/generate-invoice` - Generate invoice (Admin only)
+Use an isolated local PostgreSQL role with CREATEDB. The integration fixture creates/drops disposable databases. Never target production.
 
-## Recently Added Views (4 new)
-1. **ClientsView.jsx** - `frontend/src/pages/ClientsView.jsx`
-   - Client table with company name, contact, email, phone, status badges
-   - Search, filtering, add/delete actions
-   - API: `GET /api/v1/clients/`
+Office frontend (from `frontend/`): `npm run lint`, `npm run build`, and the browser suites declared in `package.json`. Browser suites require Chromium and use mocked APIs.
 
-2. **RosterView.jsx** - `frontend/src/pages/RosterView.jsx`
-   - Shift roster table per guard with date, shift type (DAY/NIGHT), status
-   - Filter by guard, shift type
-   - API: `GET /api/v1/guards/` with roster expansion
+Employee portal (from `employee-app/`): `npm ci`, `npm run lint`, `npm run build`. Build emits `dist/` without replacing source assets in `public/`.
 
-3. **AttendanceView.jsx** - `frontend/src/pages/AttendanceView.jsx`
-   - Attendance records with PRESENT/ABSENT/OVERTIME stats
-   - Summary stats grid (PRESENT/ABSENT/OVERTIME counts + total hours)
-   - API: `GET /api/v1/attendance/`
+Local restore drill: `scripts/verify_local_restore.py`. It proves generated local dump/restore only. Production offsite backup retention and recovery require separate evidence.
 
-4. **InvoicesView.jsx** - `frontend/src/pages/InvoicesView.jsx`
-   - Invoices table with client, billing month, amount, status (DRAFT/PAID)
-   - Filter by client, status, month
-   - Revenue summary section with progress bar
-   - API: `GET /api/v1/invoices/`
+## Scope and readiness
 
-## Design System
-- Tailwind CSS v3 with custom color palette
-- lucide-react icons (Shield, Users, MapPin, ClipboardList, ReceiptText, Shield, Calendar, Users, etc.)
-- MainLayout sidebar navigation with dashboard, personnel, clients, rosters, attendance, billing
-- Consistent glassmorphism panels, tables with hover rows, status badges
-- Search/filter controls on all data tables
-- Loading skeleton states (animate-pulse pattern)
-- Delete confirmations with window.confirm()
-
-## Live Testing
-- Frontend: `npm run dev` → `http://localhost:5173`
-- Backend: `uvicorn app.main:app --host 0.0.0.0 --port 8000` → `http://localhost:8000`
-- Full integration requires backend database (PostgreSQL) with seeded data
-
-## Next Steps
-- Start backend server and verify API connectivity
-- Test all 5 views (Dashboard + 4 new) in browser
-- Verify navigation between views via sidebar
-- Test filter/search functionality
-- Confirm delete actions work correctly
+See `docs/engineering/DEVELOPMENT_20261025.md` for the current completion ledger. Historical documents describe earlier snapshots; they are not proof of present readiness. Statutory payroll, GST treatment, receipt allocation and real-device attendance require the validation explicitly listed there.

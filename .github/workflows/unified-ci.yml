@@ -15,7 +15,7 @@ jobs:
           node-version: 22
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm install
+        run: npm ci
       - name: Build frontend
         working-directory: frontend
         run: npm run build
@@ -29,7 +29,7 @@ jobs:
           node-version: 22
       - name: Install employee app dependencies
         working-directory: employee-app
-        run: npm install
+        run: npm ci
       - name: Build employee app
         working-directory: employee-app
         run: npm run build

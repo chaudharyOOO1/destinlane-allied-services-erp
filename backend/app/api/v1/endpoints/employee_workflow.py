@@ -28,14 +28,20 @@ def create_intimation(data:dict,db:Session=Depends(get_db),user:User=Depends(req
     if missing: raise HTTPException(422,'Complete intimation fields: '+', '.join(sorted(missing)))
     validate_links(db,p)
     try:
-        info=db.execute(text('insert into employee_intimations(name,father_name,aadhaar_no,phone,client_id,branch,created_by) values (:name,:father_name,:aadhaar_no,:phone,:client_id,:branch,:user) returning *'),{**p,'user':user.id}).mappings().one()
-        row=db.execute(text("insert into employees(name,father_name,aadhaar_no,phone,client_id,branch,intimation_id,status) values (:name,:father_name,:aadhaar_no,:phone,:client_id,:branch,:iid,'DRAFT') returning *"),{**p,'iid':info['intimation_id']}).mappings().one()
-        db.execute(text("insert into employee_joining_drafts(intimation_id,employee_id,created_by) values (:iid,:eid,:user)"),{'iid':str(info['id']),'eid':str(row['id']),'user':user.id})
-        audit(db,row['id'],user,'INTIMATION',1,{'intimation_id':info['intimation_id']})
+        eid=create_intimation_record(db,p,user)
         db.commit()
-        return payload(db,row['id'])
+        return payload(db,eid)
     except IntegrityError:
         db.rollback();raise HTTPException(409,'An employee with this Aadhaar or mobile number already exists. Open the existing employee file.')
+
+
+def create_intimation_record(db,p,user):
+    """Create a draft inside the caller transaction, retaining joining gates."""
+    info=db.execute(text('insert into employee_intimations(name,father_name,aadhaar_no,phone,client_id,branch,created_by) values (:name,:father_name,:aadhaar_no,:phone,:client_id,:branch,:user) returning *'),{**p,'user':user.id}).mappings().one()
+    row=db.execute(text("insert into employees(name,father_name,aadhaar_no,phone,client_id,branch,intimation_id,status) values (:name,:father_name,:aadhaar_no,:phone,:client_id,:branch,:iid,'DRAFT') returning *"),{**p,'iid':info['intimation_id']}).mappings().one()
+    db.execute(text("insert into employee_joining_drafts(intimation_id,employee_id,created_by) values (:iid,:eid,:user)"),{'iid':str(info['id']),'eid':str(row['id']),'user':user.id})
+    audit(db,row['id'],user,'INTIMATION',1,{'intimation_id':info['intimation_id']})
+    return row['id']
 
 
 @router.get('/intimations')

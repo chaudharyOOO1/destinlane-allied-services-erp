@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import api from "../api/axios";
 import { useAccess } from "../context/AccessContext";
@@ -249,9 +250,10 @@ function Field({
 }
 
 export default function Employees() {
+  const candidate = useLocation().state?.candidate;
   const { can } = useAccess();
   const { user } = useAuth();
-  const [tab, setTab] = useState("master");
+  const [tab, setTab] = useState(candidate && !candidate.employee_id ? "creation" : "master");
   const [rows, setRows] = useState([]);
   const [options, setOptions] = useState({
     clients: [],
@@ -273,7 +275,7 @@ export default function Employees() {
     site_id: "",
     designation: "",
   });
-  const [intimation, setIntimation] = useState({});
+  const [intimation, setIntimation] = useState(candidate && !candidate.employee_id ? {name:candidate.full_name,phone:candidate.phone} : {});
   const [record, setRecord] = useState(null);
   const [recordNeedsRefresh, setRecordNeedsRefresh] = useState(false);
   const [form, setForm] = useState({});
@@ -682,7 +684,7 @@ export default function Employees() {
                     e.preventDefault();
                     run(async () => {
                       const { data } = await api.post(
-                        "/erp/employees/workflow/intimations",
+                        candidate && !candidate.employee_id ? `/erp/recruitment/${encodeURIComponent(candidate.candidate_id)}/onboard` : "/erp/employees/workflow/intimations",
                         intimation,
                       );
                       setIntimation({});

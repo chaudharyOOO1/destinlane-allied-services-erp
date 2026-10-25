@@ -43,7 +43,7 @@ jobs:
           node-version: 22
       - name: Install dependencies
         # This app has no committed npm lockfile; match its verified build workflow.
-        run: npm install
+        run: npm ci
       - name: Build
         run: npm run build
 

@@ -90,5 +90,7 @@ jobs:
         run: npm run test:dashboard
       - name: Module save and billing browser workflows (simulated API)
         run: npm run test:module-workflows
+      - name: Payroll and account access browser workflows (simulated API)
+        run: npm run test:payroll-access
       - name: Production build
         run: npm run build

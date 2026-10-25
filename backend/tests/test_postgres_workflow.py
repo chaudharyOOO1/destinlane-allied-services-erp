@@ -163,7 +163,7 @@ def test_bootstrap_and_employee_to_invoice(postgres_workflow):
     assert result["final"] is True
     with sessions() as db:
         guard_id = db.execute(text("select id from guard_profiles where employee_id=:id"), {"id": employee_id}).scalar_one()
-        db.execute(text("update guard_profiles set daily_rate=800 where id=:id"), {"id": guard_id}); db.commit()
+    call("POST", "/erp/payroll/wages", 201, json={"employee_id": employee_id,"effective_from":today.isoformat(),"daily_rate":"800.00","reason":"Approved local test wage"})
     roster = call("POST", "/erp/rosters", 201, json={"site_id": site_id, "guard_id": guard_id, "date": today.isoformat(), "shift_type": "GENERAL"})
     call("PUT", "/erp/attendance/rules", json={"site_id": site_id, "shift_type": "GENERAL", "start_time": "08:00:00", "duty_hours": 8, "reason": "Local test shift"})
     # Approved manual attendance uses the same payroll/billing gate as reviewed punches.

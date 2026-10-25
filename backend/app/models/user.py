@@ -21,6 +21,8 @@ class User(BaseModel):
     is_active = Column(Boolean, default=True, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)
     must_change_password = Column(Boolean, default=False, nullable=False)
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    login_locked_until = Column(DateTime(timezone=True), nullable=True)
     session_version = Column(Integer, default=0, nullable=False)
     password_initialized_at = Column(DateTime(timezone=True), nullable=True)
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Wallet, Download, CheckCircle2, Clock3, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { generateSalarySlip } from "@/lib/salarySlip";
+import { mobileApi } from "@/api/backendClient";
 
 function monthLabel(monthStr) {
   if (!monthStr) return "—";
@@ -11,8 +11,10 @@ function monthLabel(monthStr) {
   return d.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 }
 
-export default function SalaryCard({ employee, salaryRecords }) {
+export default function SalaryCard({ salaryRecords }) {
   const records = salaryRecords || [];
+  const [downloadError, setDownloadError] = useState("");
+  const [downloading, setDownloading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState("");
 
   useEffect(() => {
@@ -105,12 +107,19 @@ export default function SalaryCard({ employee, salaryRecords }) {
           <Button
             variant="outline"
             className="mt-5 w-full"
-            disabled={!selected}
-            onClick={() => selected && generateSalarySlip(employee, selected)}
+            disabled={!selected || downloading}
+            onClick={async () => {
+              if (!selected) return;
+              setDownloadError(''); setDownloading(true);
+              try { await mobileApi.downloadSalary(selected.id); }
+              catch (error) { setDownloadError(error.message); }
+              finally { setDownloading(false); }
+            }}
           >
             <Download className="mr-2 h-4 w-4" />
             Download Salary Slip
           </Button>
+          {downloadError && <p role="alert" className="mt-2 text-sm text-red-700">{downloadError}</p>}
         </div>
       )}
     </motion.div>

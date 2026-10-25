@@ -31,7 +31,10 @@ def create_corporate_compliance(payload: dict, db: Session = Depends(get_db), cu
     data={k:v for k,v in payload.items() if k in allowed}
     if not data.get("compliance_type"): raise HTTPException(400,"compliance_type is required")
     cols=", ".join(data); vals=", ".join(f":{k}" for k in data)
-    return dict(db.execute(text(f"insert into corporate_compliances ({cols}) values ({vals}) returning *"),data).mappings().one())
+    row = db.execute(text(f"insert into corporate_compliances ({cols}) values ({vals}) returning *"),data).mappings().one()
+    result = dict(row)
+    db.commit()
+    return result
 
 @router.patch("/corporate-compliances/{compliance_id}")
 def update_corporate_compliance(compliance_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
@@ -41,7 +44,9 @@ def update_corporate_compliance(compliance_id: str, payload: dict, db: Session =
     sets=", ".join(f"{k}=:{k}" for k in data if k!="id")
     row=db.execute(text(f"update corporate_compliances set {sets}, updated_at=now() where id=:id returning *"),data).mappings().first()
     if not row: raise HTTPException(404,"Compliance record not found")
-    return dict(row)
+    result = dict(row)
+    db.commit()
+    return result
 
 @router.post("/payroll/salary-records")
 def create_salary_record(payload: dict, db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
@@ -49,7 +54,10 @@ def create_salary_record(payload: dict, db: Session = Depends(get_db), current_u
     data={k:v for k,v in payload.items() if k in allowed}
     if not data.get("employee_id") or not data.get("month"): raise HTTPException(400,"employee_id and month are required")
     cols=", ".join(data); vals=", ".join(f":{k}" for k in data)
-    return dict(db.execute(text(f"insert into salary_records ({cols}) values ({vals}) returning *"),data).mappings().one())
+    row = db.execute(text(f"insert into salary_records ({cols}) values ({vals}) returning *"),data).mappings().one()
+    result = dict(row)
+    db.commit()
+    return result
 
 @router.patch("/payroll/salary-records/{record_id}")
 def update_salary_record(record_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(require_hr_or_admin)):
@@ -59,11 +67,15 @@ def update_salary_record(record_id: str, payload: dict, db: Session = Depends(ge
     sets=", ".join(f"{k}=:{k}" for k in data if k!="id")
     row=db.execute(text(f"update salary_records set {sets}, updated_at=now() where id=:id returning *"),data).mappings().first()
     if not row: raise HTTPException(404,"Salary record not found")
-    return dict(row)
+    result = dict(row)
+    db.commit()
+    return result
 
 @router.patch("/risks/{risk_id}")
 def resolve_risk(risk_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(require_owner)):
     resolved=bool(payload.get("resolved", True))
     row=db.execute(text("update risk_flags set resolved=:resolved, resolved_at=case when :resolved then now() else null end where id=:id returning *"),{"id":risk_id,"resolved":resolved}).mappings().first()
     if not row: raise HTTPException(404,"Risk flag not found")
-    return dict(row)
+    result = dict(row)
+    db.commit()
+    return result

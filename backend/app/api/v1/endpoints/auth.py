@@ -1,15 +1,15 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.api.deps import get_current_active_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import create_access_token
+from app.core.security import create_access_token, get_password_hash, verify_password
 from app.core.supabase_auth import get_recovery_user, update_recovery_password, provision_supabase_password_user
 from app.crud.crud_user import user as crud_user
 from app.models.enums import UserRole
@@ -19,6 +19,7 @@ from app.schemas.user import UserResponse
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+_DUMMY_LOGIN_HASH = get_password_hash("unknown-account-constant-cost")
 
 
 class EmailRecoveryRequest(BaseModel):
@@ -64,9 +65,33 @@ class ChangePasswordRequest(BaseModel):
 
 @router.post('/login', response_model=Token)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    account = crud_user.authenticate(db, login_id=payload.login_id, password=payload.password)
-    if not account or not account.is_active:
+    identifier = payload.login_id.strip()
+    # Lock one account across serverless instances. Attempts use the same state
+    # whether the user enters a login ID, email or registered phone number.
+    account = db.query(User).filter(or_(
+        func.upper(User.login_id) == identifier.upper(),
+        func.lower(User.email) == identifier.lower(),
+        User.phone_number == identifier,
+    )).with_for_update().first()
+    now = datetime.now(timezone.utc)
+    locked = account.login_locked_until if account else None
+    if locked and locked.tzinfo is None: locked = locked.replace(tzinfo=timezone.utc)
+    if locked and locked > now:
+        raise HTTPException(429, 'Too many sign-in attempts. Try again after 15 minutes.', headers={'Retry-After':'900'})
+    if account:
+        valid = crud_user.authenticate(db, login_id=account.login_id or account.email, password=payload.password) is not None
+    else:
+        verify_password(payload.password, _DUMMY_LOGIN_HASH)
+        valid = False
+    if not account or not valid or not account.is_active:
+        if account:
+            account.failed_login_attempts = (0 if locked and locked <= now else account.failed_login_attempts) + 1
+            if account.failed_login_attempts >= 5: account.login_locked_until = now + timedelta(minutes=15)
+            db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid Login ID or password', headers={'WWW-Authenticate': 'Bearer'})
+    account.failed_login_attempts = 0
+    account.login_locked_until = None
+    db.commit()
     token = create_access_token(account.id, role=account.role, session_version=account.session_version)
     return {'access_token': token, 'token_type': 'bearer', 'user': account}
 

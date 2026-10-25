@@ -1,5 +1,7 @@
 # DestinLane ERP — Unified Architecture & Security Review
 
+25 October 2026 update: office accounts also have database-backed failed-attempt lockout. Employee document/payslip endpoints enforce authenticated ownership. See [current limitations and validation](docs/engineering/DEVELOPMENT_20261025.md); network-wide rate limiting, cookie-based session hardening and production offsite restore remain open.
+
 ## Target architecture
 
 - One GitHub repository: `destinlane-allied-services-erp`
@@ -24,7 +26,7 @@ Vercel Services is intentionally used instead of separate Vercel projects so fro
 8. Per-user permission overrides can explicitly deny permissions instead of being ignored for administrator roles.
 9. Added administrator role-management hierarchy checks and self-disable/self-delete protection.
 10. User creation, password reset, and password change synchronize passwords with Supabase Auth.
-11. Local password verification is disabled by default and is available only through an explicit migration fallback flag.
+11. Office sign-in verifies the stored password hash. Configured production account provisioning synchronizes with Supabase Auth; the explicit local fallback flag governs provisioning when Supabase is absent, not all local password verification.
 12. Passwords exceeding bcrypt's 72-byte limit are rejected instead of silently truncated.
 13. Employee login and attendance were moved behind the FastAPI mobile API instead of anonymous direct table access from the browser.
 14. Employee selfie uploads now go through the backend and use server-side Supabase Storage credentials; mobile reads can return signed URLs.
@@ -43,7 +45,7 @@ The migrations are written to be safe against the corresponding objects already 
 ## Remaining hardening items
 
 - The main ERP browser session still stores the application JWT in `localStorage`. This should be migrated to an HttpOnly, Secure, SameSite cookie session before treating the application as security-complete against XSS token theft.
-- Phone-only employee login is intentionally retained because it is a stated product requirement. It is weaker than OTP/password/device-bound authentication; the backend therefore enforces active-employee status, short-lived mobile JWTs, GPS geofencing, and device binding for attendance.
+- Employee login requires a registered phone number plus an 8–12 digit PIN, approved joining and active status. Five failed PIN attempts lock access temporarily. Attendance additionally enforces short-lived mobile JWTs, GPS geofencing, private selfie proofs and device binding.
 - Existing legacy employee-app dependencies/files that are no longer used should be removed after a clean production build confirms there are no remaining imports.
 - Production environment variables must be configured in the single Vercel project before deployment: `SECRET_KEY`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `ADMIN_SETUP_TOKEN`.
 
@@ -58,6 +60,6 @@ Before production is considered healthy:
 5. Login works with the administrator Login ID.
 6. A non-admin account cannot create or modify administrator accounts.
 7. Explicit permission denial removes both UI access and API access.
-8. Employee phone login returns only the matched active employee.
+8. Employee phone/PIN login returns only the matched active, approved employee.
 9. Employee attendance rejects missing GPS, out-of-geofence punches, and device mismatches.
 10. Employee selfie uploads do not require the browser to hold a Supabase service credential.

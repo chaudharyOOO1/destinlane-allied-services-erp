@@ -13,7 +13,8 @@
     "test:travel-expenses": "bash scripts/test-browser.sh travel-expenses",
     "test:md-everyday": "bash scripts/test-browser.sh md-everyday",
     "test:md-accounting": "bash scripts/test-browser.sh md-accounting",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:payroll-access": "bash scripts/test-browser.sh payroll-access"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

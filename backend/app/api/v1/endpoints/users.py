@@ -1,13 +1,15 @@
+import hashlib
+import json
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 from sqlalchemy import text, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_active_user, require_admin
-from app.api.permissions import all_permission_keys, effective_permissions, permission_supported, MODULE_ROLES
+from app.api.permissions import all_permission_keys, effective_permissions, permission_supported, role_allows, MODULE_ROLES
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import get_password_hash
@@ -233,6 +235,98 @@ class PermissionUpdate(BaseModel):
     allowed: bool
 
 
+def _permission_snapshot(db, target, actor):
+    """Role inheritance, saved exceptions and revision for the access editor."""
+    keys = all_permission_keys()
+    role = _role_value(target.role)
+    overrides = {row.permission_key: bool(row.allowed) for row in db.execute(
+        text('select permission_key,allowed from public.user_permissions where user_id=:id'),
+        {'id': target.id}) if row.permission_key in keys}
+    supported = {key: permission_supported(role, key) and
+                 (not key.startswith('md_accounting.') or target.id == settings.MD_ACCOUNTING_USER_ID)
+                 for key in keys}
+    defaults = {key: role_allows(role, key) and supported[key] for key in keys}
+    protected = target.role == UserRole.OWNER and target.is_superuser
+    manageable, reason = True, ''
+    try:
+        assert_staff_account_manager(db, actor, target)
+        _assert_manage_target(actor, target)
+    except HTTPException:
+        manageable, reason = False, 'This account must be managed by Management or IT Super Admin.'
+    staff = db.query(InternalStaff).filter_by(user_id=target.id).first()
+    revision = hashlib.sha256(json.dumps({
+        'role': role, 'active': target.is_active, 'session': target.session_version,
+        'overrides': overrides,
+    }, sort_keys=True).encode()).hexdigest()
+    return {
+        'permissions': effective_permissions(db, target),
+        'configured_permissions': effective_permissions(db, target, include_inactive=True),
+        'catalog': keys, 'module_roles': MODULE_ROLES, 'supported': supported,
+        'role_defaults': defaults, 'overrides': overrides, 'revision': revision,
+        'restrictions': {
+            'manageable': manageable, 'reason': reason, 'protected_account': protected,
+            'self_account': target.id == actor.id, 'staff_managed': bool(staff),
+            'can_edit_access': manageable and not protected,
+            'can_edit_role': manageable and target.id != actor.id and not protected,
+            'can_toggle_active': manageable and target.id != actor.id and not protected,
+            'can_reset_password': manageable and target.id != actor.id and not protected,
+        },
+    }
+
+
+class AccessUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    revision: str = Field(pattern=r'^[0-9a-f]{64}$')
+    # null removes the exception and restores the current role default.
+    changes: dict[str, StrictBool | None] = Field(max_length=133)
+
+
+@router.put('/{user_id}/access')
+def save_user_access(
+    *, user_id: int, data: AccessUpdate, db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> dict:
+    target = db.query(User).filter(User.id == user_id).with_for_update().first()
+    if not target:
+        raise HTTPException(404, 'User not found.')
+    assert_staff_account_manager(db, current_user, target)
+    _assert_manage_target(current_user, target)
+    snapshot = _permission_snapshot(db, target, current_user)
+    if snapshot['restrictions']['protected_account']:
+        raise HTTPException(400, 'The protected Management recovery account uses fixed access.')
+    if data.revision != snapshot['revision']:
+        raise HTTPException(409, 'This account access changed. Reload the user before saving again.')
+    # Validate the entire command before changing any row.
+    for key, value in data.changes.items():
+        if key not in snapshot['catalog']:
+            raise HTTPException(422, 'Unknown permission.')
+        if value is True and not snapshot['supported'][key]:
+            raise HTTPException(422, 'This permission is unavailable for the account role or identity.')
+        next_value = snapshot['role_defaults'][key] if value is None else value
+        if target.id == current_user.id and key in {'user_management.view', 'user_management.edit'} and not next_value:
+            raise HTTPException(400, 'You cannot remove your own account administration access.')
+    changed = {}
+    for key, value in data.changes.items():
+        if (value is None and key not in snapshot['overrides']) or (
+            value is not None and snapshot['overrides'].get(key) is value):
+            continue
+        if value is None:
+            db.execute(text('delete from public.user_permissions where user_id=:id and permission_key=:key'),
+                       {'id': user_id, 'key': key})
+        else:
+            db.execute(text("""insert into public.user_permissions(user_id,permission_key,allowed,updated_at)
+                values(:id,:key,:allowed,CURRENT_TIMESTAMP)
+                on conflict(user_id,permission_key) do update set allowed=excluded.allowed,updated_at=CURRENT_TIMESTAMP"""),
+                       {'id': user_id, 'key': key, 'allowed': value})
+        changed[key] = value
+    if changed:
+        if target.id != current_user.id:
+            target.session_version += 1
+        audit(db, current_user, target, 'ACCESS_SAVE', {'changes': changed})
+        db.commit()
+    return _permission_snapshot(db, target, current_user)
+
+
 @router.get("/{user_id}/permissions")
 def get_user_permissions(
     *,
@@ -245,7 +339,7 @@ def get_user_permissions(
     db_user = crud_user.get(db, id=user_id)
     if not db_user:
         raise HTTPException(404, "User not found.")
-    return {"permissions": effective_permissions(db, db_user), "catalog": all_permission_keys(), "module_roles": MODULE_ROLES, "supported": {key:permission_supported(_role_value(db_user.role),key) for key in all_permission_keys()}}
+    return _permission_snapshot(db, db_user, current_user)
 
 
 @router.put("/{user_id}/permissions")
@@ -258,7 +352,7 @@ def set_user_permission(
 ) -> dict:
     if data.permission_key not in all_permission_keys():
         raise HTTPException(400, "Unknown permission.")
-    db_user = crud_user.get(db, id=user_id)
+    db_user = db.query(User).filter(User.id == user_id).with_for_update().first()
     if not db_user:
         raise HTTPException(404, "User not found.")
     assert_staff_account_manager(db,current_user,db_user)

@@ -22,8 +22,21 @@ export const mobileApi = {
     body: JSON.stringify({ phone, pin }),
   }),
   me: () => request('/mobile/me'),
+  documents: () => request('/mobile/me/documents'),
   attendance: () => request('/mobile/me/attendance'),
   salary: () => request('/mobile/me/salary'),
+  downloadSalary: async (id) => {
+    const response = await fetch(`${API_BASE}/mobile/me/salary/${encodeURIComponent(id)}/pdf`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('emp_access_token') || ''}` },
+    });
+    if (!response.ok) throw new Error('Salary slip could not be downloaded. Please try again.');
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `salary-slip-${id}.pdf`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
   uploadSelfie: (file, kind) => {
     const form = new FormData();
     form.append('file', file, file.name || `${kind}.jpg`);
