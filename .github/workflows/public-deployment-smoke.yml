@@ -1,0 +1,30 @@
+name: Public deployment smoke gate
+
+# This workflow is read-only: no credentials, production writes, migrations,
+# deployments, or authenticated requests.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deployed-routes:
+    name: Verify public assets and anonymous API protections
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out smoke-test source
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Validate public deployed routes (GET only)
+        run: python scripts/verify_public_routes.py --base-url https://erp.destinlane.in
