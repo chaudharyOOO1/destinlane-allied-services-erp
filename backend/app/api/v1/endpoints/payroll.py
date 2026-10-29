@@ -132,6 +132,7 @@ def calculate_payroll(payload: dict, db: Session = Depends(get_db), current_user
       sp.police_verification_expiry,sp.medical_fitness_expiry,
       coalesce(e.status,'active') employee_status,
       count(a.id) filter (where a.status::text in ('present','PRESENT','late','LATE')) present_days,
+      count(a.id) filter (where rc.id is null) missing_rate_days,
       coalesce(sum(a.shift_hours),0) regular_hours,
       coalesce(sum(a.overtime_hours),0) overtime_hours,
       count(a.id) filter (where r.shift_type='NIGHT' and a.status::text in ('present','PRESENT','late','LATE')) night_days
@@ -293,6 +294,11 @@ def generate_attendance_invoice(payload: dict, db: Session = Depends(get_db), cu
         and (rc.contract_id is null or exists(select 1 from client_contracts cc where cc.id=rc.contract_id and cc.status in ('ACTIVE','RENEWED','EXPIRED','TERMINATED') and a.attendance_date between cc.contract_start_date and cc.contract_end_date))
       where a.attendance_date between :start and :end and a.verification_status='VERIFIED' and a.check_out_time is not null and a.status in ('present','late','PRESENT','LATE'){filters}
       group by s.id,s.site_name,s.client_id,c.company_name,c.branch_region,s.branch_region"""),params).mappings().all()
+    # Never issue a partial invoice when verified attendance lacks an effective
+    # rate card. Check all selected sites before inserting any invoice.
+    missing_rates = [str(row['site_name']) for row in rows if row['missing_rate_days']]
+    if missing_rates:
+        raise HTTPException(409, 'Missing effective billing rates for verified attendance at: ' + ', '.join(missing_rates))
     generated=[]
     for row in rows:
         subtotal=round(float(row["service_value"] or 0)+float(row["overtime_value"] or 0),2)
