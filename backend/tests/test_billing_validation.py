@@ -67,3 +67,20 @@ def test_parallel_invoice_generation_creates_exactly_one(postgres_workflow):
     with sessions() as db:
         assert db.execute(text("select count(*) from invoices")).scalar_one()==1
 
+
+
+def test_missing_effective_rate_rejects_invoice_without_partial_write(postgres_workflow):
+    bootstrap_invoice(postgres_workflow)
+    http,sessions,_,today,_,_,_,client_id,site_id,_=postgres_workflow
+    headers=auth(http)
+    with sessions() as db:
+        db.execute(text('delete from invoices'))
+        db.execute(text('delete from site_rate_cards where site_id=:site'),{'site':site_id})
+        db.commit()
+    response=http.post('/api/v1/erp/billing/generate',
+                       json={'month':today.strftime('%Y-%m'),'client_id':client_id},
+                       headers=headers)
+    assert response.status_code==409,response.text
+    assert 'Missing effective billing rates' in response.text
+    with sessions() as db:
+        assert db.execute(text('select count(*) from invoices')).scalar_one()==0
